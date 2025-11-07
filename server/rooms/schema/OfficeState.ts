@@ -6,6 +6,7 @@ import {
   IWhiteboard,
   IChatMessage,
 } from '../../../types/IOfficeState'
+import { NPC } from './NpcState'
 
 export class Player extends Schema implements IPlayer {
   @type('string') name = ''
@@ -43,6 +44,9 @@ export class OfficeState extends Schema implements IOfficeState {
 
   @type([ChatMessage])
   chatMessages = new ArraySchema<ChatMessage>()
+
+  @type({ map: NPC })
+  npcs = new MapSchema<NPC>()
 }
 
 export const whiteboardRoomIds = new Set<string>()

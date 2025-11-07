@@ -1,4 +1,5 @@
 import { Schema, ArraySchema, SetSchema, MapSchema } from '@colyseus/schema'
+import { INPC } from './INpc'
 
 export interface IPlayer extends Schema {
   name: string
@@ -29,4 +30,5 @@ export interface IOfficeState extends Schema {
   computers: MapSchema<IComputer>
   whiteboards: MapSchema<IWhiteboard>
   chatMessages: ArraySchema<IChatMessage>
+  npcs: MapSchema<INPC>
 }

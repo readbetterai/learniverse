@@ -2,6 +2,7 @@ import bcrypt from 'bcrypt'
 import { Room, Client, ServerError } from 'colyseus'
 import { Dispatcher } from '@colyseus/command'
 import { Player, OfficeState, Computer, Whiteboard } from './schema/OfficeState'
+import { NPC } from './schema/NpcState'
 import { Message } from '../../types/Messages'
 import { IRoomData } from '../../types/Rooms'
 import { whiteboardRoomIds } from './schema/OfficeState'
@@ -48,6 +49,9 @@ export class SkyOffice extends Room<OfficeState> {
     for (let i = 0; i < 3; i++) {
       this.state.whiteboards.set(String(i), new Whiteboard())
     }
+
+    // Spawn NPCs
+    this.spawnNPCs()
 
     // when a player connect to a computer, add to the computer connectedUser array
     this.onMessage(Message.CONNECT_TO_COMPUTER, (client, message: { computerId: string }) => {
@@ -153,6 +157,32 @@ export class SkyOffice extends Room<OfficeState> {
         { except: client }
       )
     })
+
+    // when a player interacts with an NPC
+    this.onMessage(Message.INTERACT_WITH_NPC, (client, message: { npcId: string }) => {
+      const { npcId } = message
+      console.log(`Player ${client.sessionId} interacted with NPC ${npcId}`)
+
+      // Send a simple response back to the client
+      client.send(Message.INTERACT_WITH_NPC, {
+        npcId,
+        message: 'Hello! Welcome to SkyOffice!',
+      })
+    })
+  }
+
+  private spawnNPCs() {
+    // Spawn a guide NPC
+    const guide = new NPC()
+    guide.id = 'guide'
+    guide.name = 'Prof. Laura'
+    guide.x = 1000
+    guide.y = 350
+    guide.texture = 'nancy'
+    guide.anim = 'nancy_idle_down'
+
+    this.state.npcs.set('guide', guide)
+    console.log('✅ Spawned NPC: Guide at (400, 350)')
   }
 
   async onAuth(client: Client, options: { password: string | null }) {

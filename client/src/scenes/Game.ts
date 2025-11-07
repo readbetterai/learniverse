@@ -8,6 +8,7 @@ import Chair from '../items/Chair'
 import Computer from '../items/Computer'
 import Whiteboard from '../items/Whiteboard'
 import VendingMachine from '../items/VendingMachine'
+import Npc from '../items/Npc'
 import '../characters/MyPlayer'
 import '../characters/OtherPlayer'
 import MyPlayer from '../characters/MyPlayer'
@@ -15,8 +16,10 @@ import OtherPlayer from '../characters/OtherPlayer'
 import PlayerSelector from '../characters/PlayerSelector'
 import Network from '../services/Network'
 import { IPlayer } from '../../../types/IOfficeState'
+import { INPC } from '../../../types/INpc'
 import { PlayerBehavior } from '../../../types/PlayerBehavior'
 import { ItemType } from '../../../types/Items'
+import { phaserEvents, Event } from '../events/EventCenter'
 
 import store from '../stores'
 import { setFocused, setShowChat } from '../stores/ChatStore'
@@ -34,6 +37,8 @@ export default class Game extends Phaser.Scene {
   private otherPlayerMap = new Map<string, OtherPlayer>()
   computerMap = new Map<string, Computer>()
   private whiteboardMap = new Map<string, Whiteboard>()
+  private npcs!: Phaser.Physics.Arcade.StaticGroup
+  private npcMap = new Map<string, { sprite: Npc; nameText: Phaser.GameObjects.Text }>()
 
   constructor() {
     super('game')
@@ -128,6 +133,9 @@ export default class Game extends Phaser.Scene {
       this.addObjectFromTiled(vendingMachines, obj, 'vendingmachines', 'vendingmachine')
     })
 
+    // create NPC static group (NPCs will be spawned dynamically from server)
+    this.npcs = this.physics.add.staticGroup({ classType: Npc })
+
     // import other objects from Tiled map to Phaser
     this.addGroupFromTiled('Wall', 'tiles_wall', 'FloorAndGround', false)
     this.addGroupFromTiled('Objects', 'office', 'Modern_Office_Black_Shadow', false)
@@ -146,7 +154,7 @@ export default class Game extends Phaser.Scene {
 
     this.physics.add.overlap(
       this.playerSelector,
-      [chairs, computers, whiteboards, vendingMachines],
+      [chairs, computers, whiteboards, vendingMachines, this.npcs],
       this.handleItemSelectorOverlap,
       undefined,
       this
@@ -169,6 +177,16 @@ export default class Game extends Phaser.Scene {
     this.network.onItemUserAdded(this.handleItemUserAdded, this)
     this.network.onItemUserRemoved(this.handleItemUserRemoved, this)
     this.network.onChatMessageAdded(this.handleChatMessageAdded, this)
+
+    // register NPC event listeners
+    phaserEvents.on(Event.NPC_JOINED, this.handleNPCJoined, this)
+    phaserEvents.on(Event.NPC_UPDATED, this.handleNPCUpdated, this)
+
+    // Handle NPCs that were already spawned before this scene initialized
+    const existingNPCs = this.network.getExistingNPCs()
+    existingNPCs.forEach(({ npc, key }) => {
+      this.handleNPCJoined(npc, key)
+    })
   }
 
   private handleItemSelectorOverlap(playerSelector, selectionItem) {
@@ -279,6 +297,63 @@ export default class Game extends Phaser.Scene {
   private handleChatMessageAdded(playerId: string, content: string) {
     const otherPlayer = this.otherPlayerMap.get(playerId)
     otherPlayer?.updateDialogBubble(content)
+  }
+
+  // function to add new NPC when spawned by server
+  private handleNPCJoined(npcData: INPC, npcId: string) {
+    // Create NPC sprite at the specified position
+    const npc = this.npcs.get(npcData.x, npcData.y, npcData.texture) as Npc
+
+    if (!npc) return
+
+    npc.npcId = npcId
+    npc.npcName = npcData.name
+
+    // Set depth based on y position (for proper layering)
+    npc.setDepth(npcData.y)
+
+    // Adjust hitbox (similar to player)
+    npc.body.setSize(npc.width * 0.5, npc.height * 0.5)
+
+    // Create name label above NPC
+    const nameText = this.add.text(npcData.x, npcData.y - 30, npcData.name, {
+      fontSize: '14px',
+      color: '#FFD700', // Gold color for NPCs
+      backgroundColor: '#000000',
+      padding: { x: 6, y: 3 },
+    })
+    nameText.setOrigin(0.5)
+    nameText.setDepth(npcData.y)
+
+    // Store references
+    this.npcMap.set(npcId, { sprite: npc, nameText })
+
+    // Play idle animation
+    npc.anims.play(npcData.anim, true)
+  }
+
+  // function to update NPC when server state changes
+  private handleNPCUpdated(field: string, value: any, npcId: string) {
+    const npcObj = this.npcMap.get(npcId)
+    if (!npcObj) return
+
+    const { sprite, nameText } = npcObj
+
+    switch (field) {
+      case 'x':
+        sprite.x = value
+        nameText.x = value
+        break
+      case 'y':
+        sprite.y = value
+        nameText.y = value - 30
+        sprite.setDepth(value)
+        nameText.setDepth(value)
+        break
+      case 'anim':
+        sprite.anims.play(value, true)
+        break
+    }
   }
 
   update(t: number, dt: number) {

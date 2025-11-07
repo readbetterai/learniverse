@@ -1,5 +1,6 @@
 import { Client, Room } from 'colyseus.js'
 import { IComputer, IOfficeState, IPlayer, IWhiteboard } from '../../../types/IOfficeState'
+import { INPC } from '../../../types/INpc'
 import { Message } from '../../../types/Messages'
 import { IRoomData, RoomType } from '../../../types/Rooms'
 import { ItemType } from '../../../types/Items'
@@ -160,6 +161,19 @@ export default class Network {
       store.dispatch(pushChatMessage(item))
     }
 
+    // new instance added to the npcs MapSchema
+    this.room.state.npcs.onAdd = (npc: INPC, key: string) => {
+      phaserEvents.emit(Event.NPC_JOINED, npc, key)
+
+      // track changes on every child object inside the npcs MapSchema
+      npc.onChange = (changes) => {
+        changes.forEach((change) => {
+          const { field, value } = change
+          phaserEvents.emit(Event.NPC_UPDATED, field, value, key)
+        })
+      }
+    }
+
     // when the server sends room data
     this.room.onMessage(Message.SEND_ROOM_DATA, (content) => {
       store.dispatch(setJoinedRoomData(content))
@@ -281,5 +295,19 @@ export default class Network {
 
   addChatMessage(content: string) {
     this.room?.send(Message.ADD_CHAT_MESSAGE, { content: content })
+  }
+
+  // method to interact with NPC
+  interactWithNPC(npcId: string) {
+    this.room?.send(Message.INTERACT_WITH_NPC, { npcId })
+  }
+
+  // method to get existing NPCs from room state
+  getExistingNPCs() {
+    const npcs: Array<{ npc: INPC; key: string }> = []
+    this.room?.state.npcs.forEach((npc, key) => {
+      npcs.push({ npc, key })
+    })
+    return npcs
   }
 }
