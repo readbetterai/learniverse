@@ -2,7 +2,7 @@ import bcrypt from 'bcrypt'
 import { Room, Client, ServerError } from 'colyseus'
 import { Dispatcher } from '@colyseus/command'
 import { Player, OfficeState, Computer, Whiteboard } from './schema/OfficeState'
-import { NPC } from './schema/NpcState'
+import { NPC, NpcMessage, Conversation } from './schema/NpcState'
 import { Message } from '../../types/Messages'
 import { IRoomData } from '../../types/Rooms'
 import { whiteboardRoomIds } from './schema/OfficeState'
@@ -16,7 +16,6 @@ import {
   WhiteboardAddUserCommand,
   WhiteboardRemoveUserCommand,
 } from './commands/WhiteboardUpdateArrayCommand'
-import ChatMessageUpdateCommand from './commands/ChatMessageUpdateCommand'
 
 export class SkyOffice extends Room<OfficeState> {
   private dispatcher = new Dispatcher(this)
@@ -142,22 +141,6 @@ export class SkyOffice extends Room<OfficeState> {
       })
     })
 
-    // when a player send a chat message, update the message array and broadcast to all connected clients except the sender
-    this.onMessage(Message.ADD_CHAT_MESSAGE, (client, message: { content: string }) => {
-      // update the message array (so that players join later can also see the message)
-      this.dispatcher.dispatch(new ChatMessageUpdateCommand(), {
-        client,
-        content: message.content,
-      })
-
-      // broadcast to all currently connected clients except the sender (to render in-game dialog on top of the character)
-      this.broadcast(
-        Message.ADD_CHAT_MESSAGE,
-        { clientId: client.sessionId, content: message.content },
-        { except: client }
-      )
-    })
-
     // when a player interacts with an NPC
     this.onMessage(Message.INTERACT_WITH_NPC, (client, message: { npcId: string }) => {
       const { npcId } = message
@@ -168,6 +151,74 @@ export class SkyOffice extends Room<OfficeState> {
         npcId,
         message: 'Hello! Welcome to SkyOffice!',
       })
+    })
+
+    // when a player starts a conversation with an NPC
+    this.onMessage(Message.START_NPC_CONVERSATION, (client, message: { npcId: string }) => {
+      const { npcId } = message
+      const npc = this.state.npcs.get(npcId)
+      const player = this.state.players.get(client.sessionId)
+
+      if (!npc || !player) return
+
+      console.log(`Player ${player.name} started conversation with NPC ${npc.name}`)
+
+      // Create or get existing conversation
+      if (!npc.conversations.has(client.sessionId)) {
+        const conversation = new Conversation()
+        npc.conversations.set(client.sessionId, conversation)
+      }
+
+      // Send conversation history to client
+      client.send(Message.START_NPC_CONVERSATION, {
+        npcId,
+        success: true,
+      })
+    })
+
+    // when a player sends a message to an NPC
+    this.onMessage(Message.SEND_NPC_MESSAGE, (client, message: { npcId: string; content: string }) => {
+      const { npcId, content } = message
+      const npc = this.state.npcs.get(npcId)
+      const player = this.state.players.get(client.sessionId)
+
+      if (!npc || !player) return
+
+      // Get or create conversation
+      let conversation = npc.conversations.get(client.sessionId)
+      if (!conversation) {
+        conversation = new Conversation()
+        npc.conversations.set(client.sessionId, conversation)
+      }
+
+      // Create player message
+      const playerMessage = new NpcMessage()
+      playerMessage.author = player.name
+      playerMessage.content = content
+      playerMessage.isNpc = false
+      playerMessage.createdAt = new Date().getTime()
+
+      // Add to conversation
+      conversation.messages.push(playerMessage)
+
+      console.log(`Player ${player.name} sent message to NPC ${npc.name}: ${content}`)
+
+      // Note: NPC response can be added here in the future
+      // For now, no automatic response (as per requirements)
+    })
+
+    // when a player ends a conversation with an NPC
+    this.onMessage(Message.END_NPC_CONVERSATION, (client, message: { npcId: string }) => {
+      const { npcId } = message
+      const npc = this.state.npcs.get(npcId)
+      const player = this.state.players.get(client.sessionId)
+
+      if (!npc || !player) return
+
+      console.log(`Player ${player.name} ended conversation with NPC ${npc.name}`)
+
+      // Note: We keep the conversation in memory (as per requirements - persist history)
+      // If you wanted to clear it, you would do: npc.conversations.delete(client.sessionId)
     })
   }
 

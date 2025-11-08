@@ -1,47 +1,45 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import { IChatMessage } from '../../../types/IOfficeState'
+import { INpcMessage } from '../../../types/INpc'
 import phaserGame from '../PhaserGame'
 import Game from '../scenes/Game'
 
-export enum MessageType {
-  PLAYER_JOINED,
-  PLAYER_LEFT,
-  REGULAR_MESSAGE,
+export interface NpcChatMessage {
+  author: string
+  createdAt: number
+  content: string
+  isNpc: boolean
 }
 
 export const chatSlice = createSlice({
   name: 'chat',
   initialState: {
-    chatMessages: new Array<{ messageType: MessageType; chatMessage: IChatMessage }>(),
+    npcChatMessages: new Array<NpcChatMessage>(),
+    currentNpcId: null as string | null,
+    currentNpcName: null as string | null,
+    inConversation: false,
     focused: false,
-    showChat: true,
+    showChat: false,
   },
   reducers: {
-    pushChatMessage: (state, action: PayloadAction<IChatMessage>) => {
-      state.chatMessages.push({
-        messageType: MessageType.REGULAR_MESSAGE,
-        chatMessage: action.payload,
-      })
+    startNpcChat: (state, action: PayloadAction<{ npcId: string; npcName: string; messages: NpcChatMessage[] }>) => {
+      state.currentNpcId = action.payload.npcId
+      state.currentNpcName = action.payload.npcName
+      state.npcChatMessages = action.payload.messages
+      state.inConversation = true
+      state.showChat = true
     },
-    pushPlayerJoinedMessage: (state, action: PayloadAction<string>) => {
-      state.chatMessages.push({
-        messageType: MessageType.PLAYER_JOINED,
-        chatMessage: {
-          createdAt: new Date().getTime(),
-          author: action.payload,
-          content: 'joined the lobby',
-        } as IChatMessage,
-      })
+    endNpcChat: (state) => {
+      state.currentNpcId = null
+      state.currentNpcName = null
+      state.inConversation = false
+      state.showChat = false
+      state.focused = false
     },
-    pushPlayerLeftMessage: (state, action: PayloadAction<string>) => {
-      state.chatMessages.push({
-        messageType: MessageType.PLAYER_LEFT,
-        chatMessage: {
-          createdAt: new Date().getTime(),
-          author: action.payload,
-          content: 'left the lobby',
-        } as IChatMessage,
-      })
+    pushNpcMessage: (state, action: PayloadAction<NpcChatMessage>) => {
+      state.npcChatMessages.push(action.payload)
+    },
+    setNpcChatMessages: (state, action: PayloadAction<NpcChatMessage[]>) => {
+      state.npcChatMessages = action.payload
     },
     setFocused: (state, action: PayloadAction<boolean>) => {
       const game = phaserGame.scene.keys.game as Game
@@ -55,9 +53,10 @@ export const chatSlice = createSlice({
 })
 
 export const {
-  pushChatMessage,
-  pushPlayerJoinedMessage,
-  pushPlayerLeftMessage,
+  startNpcChat,
+  endNpcChat,
+  pushNpcMessage,
+  setNpcChatMessages,
   setFocused,
   setShowChat,
 } = chatSlice.actions

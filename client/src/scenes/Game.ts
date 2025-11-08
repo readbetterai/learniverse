@@ -22,7 +22,7 @@ import { ItemType } from '../../../types/Items'
 import { phaserEvents, Event } from '../events/EventCenter'
 
 import store from '../stores'
-import { setFocused, setShowChat } from '../stores/ChatStore'
+import { setFocused, setShowChat, endNpcChat } from '../stores/ChatStore'
 import { NavKeys, Keyboard } from '../../../types/KeyboardState'
 
 export default class Game extends Phaser.Scene {
@@ -176,7 +176,6 @@ export default class Game extends Phaser.Scene {
     this.network.onPlayerUpdated(this.handlePlayerUpdated, this)
     this.network.onItemUserAdded(this.handleItemUserAdded, this)
     this.network.onItemUserRemoved(this.handleItemUserRemoved, this)
-    this.network.onChatMessageAdded(this.handleChatMessageAdded, this)
 
     // register NPC event listeners
     phaserEvents.on(Event.NPC_JOINED, this.handleNPCJoined, this)
@@ -294,11 +293,6 @@ export default class Game extends Phaser.Scene {
     }
   }
 
-  private handleChatMessageAdded(playerId: string, content: string) {
-    const otherPlayer = this.otherPlayerMap.get(playerId)
-    otherPlayer?.updateDialogBubble(content)
-  }
-
   // function to add new NPC when spawned by server
   private handleNPCJoined(npcData: INPC, npcId: string) {
     // Create NPC sprite at the specified position
@@ -360,6 +354,30 @@ export default class Game extends Phaser.Scene {
     if (this.myPlayer && this.network) {
       this.playerSelector.update(this.myPlayer, this.cursors)
       this.myPlayer.update(this.playerSelector, this.cursors, this.keyE, this.keyR, this.network)
+
+      // Check proximity to active NPC conversation
+      const currentNpcId = store.getState().chat.currentNpcId
+      const inConversation = store.getState().chat.inConversation
+
+      if (currentNpcId && inConversation) {
+        const npcObj = this.npcMap.get(currentNpcId)
+        if (npcObj) {
+          const distance = Phaser.Math.Distance.Between(
+            this.myPlayer.x,
+            this.myPlayer.y,
+            npcObj.sprite.x,
+            npcObj.sprite.y
+          )
+
+          const MAX_CONVERSATION_DISTANCE = 150 // pixels
+
+          if (distance > MAX_CONVERSATION_DISTANCE) {
+            // Player walked too far away, close conversation
+            this.network.endNpcConversation(currentNpcId)
+            store.dispatch(endNpcChat())
+          }
+        }
+      }
     }
   }
 }

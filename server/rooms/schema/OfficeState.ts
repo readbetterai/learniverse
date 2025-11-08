@@ -1,10 +1,9 @@
-import { Schema, ArraySchema, SetSchema, MapSchema, type } from '@colyseus/schema'
+import { Schema, SetSchema, MapSchema, type } from '@colyseus/schema'
 import {
   IPlayer,
   IOfficeState,
   IComputer,
   IWhiteboard,
-  IChatMessage,
 } from '../../../types/IOfficeState'
 import { NPC } from './NpcState'
 
@@ -26,12 +25,6 @@ export class Whiteboard extends Schema implements IWhiteboard {
   @type({ set: 'string' }) connectedUser = new SetSchema<string>()
 }
 
-export class ChatMessage extends Schema implements IChatMessage {
-  @type('string') author = ''
-  @type('number') createdAt = new Date().getTime()
-  @type('string') content = ''
-}
-
 export class OfficeState extends Schema implements IOfficeState {
   @type({ map: Player })
   players = new MapSchema<Player>()
@@ -41,9 +34,6 @@ export class OfficeState extends Schema implements IOfficeState {
 
   @type({ map: Whiteboard })
   whiteboards = new MapSchema<Whiteboard>()
-
-  @type([ChatMessage])
-  chatMessages = new ArraySchema<ChatMessage>()
 
   @type({ map: NPC })
   npcs = new MapSchema<NPC>()

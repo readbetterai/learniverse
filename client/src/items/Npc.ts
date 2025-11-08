@@ -1,6 +1,8 @@
 import { ItemType } from '../../../types/Items'
 import Item from './Item'
 import Network from '../services/Network'
+import store from '../stores'
+import { startNpcChat } from '../stores/ChatStore'
 
 export default class Npc extends Item {
   npcId!: string
@@ -18,17 +20,29 @@ export default class Npc extends Item {
   openDialog(network: Network) {
     if (!this.npcId) return
 
-    // Send interaction message to server
-    network.interactWithNPC(this.npcId)
-
-    // Show simple message for now
     this.clearDialogBox()
-    this.setDialogBox(`${this.npcName}: Hello! Welcome to SkyOffice!`)
 
-    // Clear message after 3 seconds
-    setTimeout(() => {
-      this.clearDialogBox()
-      this.onOverlapDialog()
-    }, 3000)
+    // Get existing conversation from network state
+    const npcs = network.room?.state.npcs
+    const npc = npcs?.get(this.npcId)
+    const conversation = npc?.conversations.get(network.room?.sessionId || '')
+
+    // Convert messages to plain objects
+    const messages = conversation?.messages.map(msg => ({
+      author: msg.author,
+      createdAt: msg.createdAt,
+      content: msg.content,
+      isNpc: msg.isNpc,
+    })) || []
+
+    // Start NPC chat UI
+    store.dispatch(startNpcChat({
+      npcId: this.npcId,
+      npcName: this.npcName,
+      messages: messages,
+    }))
+
+    // Send start conversation message to server
+    network.startNpcConversation(this.npcId)
   }
 }

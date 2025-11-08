@@ -1,4 +1,15 @@
-import { Schema } from '@colyseus/schema'
+import { Schema, MapSchema } from '@colyseus/schema'
+
+export interface INpcMessage extends Schema {
+  author: string
+  createdAt: number
+  content: string
+  isNpc: boolean
+}
+
+export interface IConversation extends Schema {
+  messages: INpcMessage[]
+}
 
 export interface INPC extends Schema {
   id: string
@@ -7,4 +18,5 @@ export interface INPC extends Schema {
   y: number
   anim: string
   texture: string
+  conversations: MapSchema<IConversation>
 }
