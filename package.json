@@ -39,7 +39,9 @@
     "colyseus": "^0.14.0",
     "colyseus.js": "^0.14.12",
     "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
     "express": "^4.16.4",
+    "openai": "^6.8.1",
     "phaser": "^3.55.2",
     "regenerator-runtime": "^0.13.7",
     "typescript": "^4.8.2"

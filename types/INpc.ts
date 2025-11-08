@@ -1,4 +1,4 @@
-import { Schema, MapSchema } from '@colyseus/schema'
+import { Schema, MapSchema, ArraySchema } from '@colyseus/schema'
 
 export interface INpcMessage extends Schema {
   author: string
@@ -8,7 +8,7 @@ export interface INpcMessage extends Schema {
 }
 
 export interface IConversation extends Schema {
-  messages: INpcMessage[]
+  messages: ArraySchema<INpcMessage>
 }
 
 export interface INPC extends Schema {

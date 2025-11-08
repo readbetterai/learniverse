@@ -16,12 +16,14 @@ import {
   WhiteboardAddUserCommand,
   WhiteboardRemoveUserCommand,
 } from './commands/WhiteboardUpdateArrayCommand'
+import { OpenAIService } from '../services/OpenAIService'
 
 export class SkyOffice extends Room<OfficeState> {
   private dispatcher = new Dispatcher(this)
   private name: string
   private description: string
   private password: string | null = null
+  private openAIService?: OpenAIService
 
   async onCreate(options: IRoomData) {
     const { name, description, password, autoDispose } = options
@@ -38,6 +40,15 @@ export class SkyOffice extends Room<OfficeState> {
     this.setMetadata({ name, description, hasPassword })
 
     this.setState(new OfficeState())
+
+    // Initialize OpenAI service for Prof. Laura
+    try {
+      this.openAIService = new OpenAIService()
+      console.log('✅ OpenAI service initialized successfully')
+    } catch (error) {
+      console.warn('⚠️  OpenAI service not available:', error instanceof Error ? error.message : error)
+      console.warn('   Prof. Laura will not respond to messages automatically')
+    }
 
     // HARD-CODED: Add 5 computers in a room
     for (let i = 0; i < 5; i++) {
@@ -167,6 +178,16 @@ export class SkyOffice extends Room<OfficeState> {
       if (!npc.conversations.has(client.sessionId)) {
         const conversation = new Conversation()
         npc.conversations.set(client.sessionId, conversation)
+
+        // Add static greeting for Prof. Laura when conversation is first started
+        if (npcId === 'guide') {
+          const greetingMessage = new NpcMessage()
+          greetingMessage.author = npc.name
+          greetingMessage.content = "Hello! I'm Prof. Laura. How can I help you with your studies today?"
+          greetingMessage.isNpc = true
+          greetingMessage.createdAt = new Date().getTime()
+          conversation.messages.push(greetingMessage)
+        }
       }
 
       // Send conversation history to client
@@ -177,7 +198,7 @@ export class SkyOffice extends Room<OfficeState> {
     })
 
     // when a player sends a message to an NPC
-    this.onMessage(Message.SEND_NPC_MESSAGE, (client, message: { npcId: string; content: string }) => {
+    this.onMessage(Message.SEND_NPC_MESSAGE, async (client, message: { npcId: string; content: string }) => {
       const { npcId, content } = message
       const npc = this.state.npcs.get(npcId)
       const player = this.state.players.get(client.sessionId)
@@ -203,8 +224,47 @@ export class SkyOffice extends Room<OfficeState> {
 
       console.log(`Player ${player.name} sent message to NPC ${npc.name}: ${content}`)
 
-      // Note: NPC response can be added here in the future
-      // For now, no automatic response (as per requirements)
+      // Generate AI response for Prof. Laura
+      if (npcId === 'guide' && this.openAIService) {
+        try {
+          // Build conversation history for OpenAI
+          const conversationHistory = conversation.messages.map(msg => ({
+            author: msg.author,
+            content: msg.content,
+            isNpc: msg.isNpc,
+          }))
+
+          // Get AI response
+          const aiResponse = await this.openAIService.getChatResponse(
+            conversationHistory,
+            npc.name,
+            player.name
+          )
+
+          // Create and add NPC response message
+          const npcResponseMessage = new NpcMessage()
+          npcResponseMessage.author = npc.name
+          npcResponseMessage.content = aiResponse
+          npcResponseMessage.isNpc = true
+          npcResponseMessage.createdAt = new Date().getTime()
+          conversation.messages.push(npcResponseMessage)
+
+          console.log(`Prof. Laura responded to ${player.name}: ${aiResponse}`)
+
+        } catch (error) {
+          console.error(`Failed to get AI response for player ${player.name}:`, error)
+
+          // Send friendly fallback message
+          const fallbackMessage = new NpcMessage()
+          fallbackMessage.author = npc.name
+          fallbackMessage.content = "I apologize, I'm having a bit of trouble formulating my thoughts right now. Could you please try asking again?"
+          fallbackMessage.isNpc = true
+          fallbackMessage.createdAt = new Date().getTime()
+          conversation.messages.push(fallbackMessage)
+
+          console.log(`Prof. Laura sent fallback message to ${player.name}`)
+        }
+      }
     })
 
     // when a player ends a conversation with an NPC
