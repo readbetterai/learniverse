@@ -10,7 +10,6 @@ import Whiteboard from '../items/Whiteboard'
 import Npc from '../items/Npc'
 
 import { phaserEvents, Event } from '../events/EventCenter'
-import store from '../stores'
 import { ItemType } from '../../../types/Items'
 import { NavKeys } from '../../../types/KeyboardState'
 import { JoystickMovement } from '../components/Joystick'

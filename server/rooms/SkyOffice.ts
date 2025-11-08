@@ -287,8 +287,8 @@ export class SkyOffice extends Room<OfficeState> {
     const guide = new NPC()
     guide.id = 'guide'
     guide.name = 'Prof. Laura'
-    guide.x = 1000
-    guide.y = 350
+    guide.x = 400
+    guide.y = 300
     guide.texture = 'nancy'
     guide.anim = 'nancy_idle_down'
 
