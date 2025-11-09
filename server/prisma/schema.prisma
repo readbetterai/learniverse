@@ -15,6 +15,7 @@ model User {
   id            String   @id @default(uuid())
   sessionId     String?  @unique // Current Colyseus session (nullable when offline)
   username      String   @unique
+  password      String   // bcrypt hashed password
   email         String?  @unique
   avatarTexture String   @default("adam")
   createdAt     DateTime @default(now())

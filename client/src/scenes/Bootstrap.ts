@@ -72,8 +72,7 @@ export default class Bootstrap extends Phaser.Scene {
       network: this.network,
     })
 
-    // update Redux state
-    store.dispatch(setRoomJoined(true))
+    // Note: setRoomJoined(true) is now called after successful authentication in LoginDialog
   }
 
   changeBackgroundMode(backgroundMode: BackgroundMode) {

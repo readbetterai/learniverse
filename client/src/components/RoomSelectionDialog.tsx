@@ -12,7 +12,8 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 
 import { CustomRoomTable } from './CustomRoomTable'
 import { CreateRoomForm } from './CreateRoomForm'
-import { useAppSelector } from '../hooks'
+import { useAppSelector, useAppDispatch } from '../hooks'
+import { setRoomJoined } from '../stores/RoomStore'
 
 import phaserGame from '../PhaserGame'
 import Bootstrap from '../scenes/Bootstrap'
@@ -106,14 +107,15 @@ export default function RoomSelectionDialog() {
   const [showCreateRoomForm, setShowCreateRoomForm] = useState(false)
   const [showSnackbar, setShowSnackbar] = useState(false)
   const lobbyJoined = useAppSelector((state) => state.room.lobbyJoined)
+  const dispatch = useAppDispatch()
 
   const handleConnect = () => {
     if (lobbyJoined) {
       const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
-      bootstrap.network
-        .joinOrCreatePublic()
-        .then(() => bootstrap.launchGame())
-        .catch((error) => console.error(error))
+      // Launch the game scene
+      bootstrap.launchGame()
+      // Set roomJoined to true to trigger LoginDialog
+      dispatch(setRoomJoined(true))
     } else {
       setShowSnackbar(true)
     }

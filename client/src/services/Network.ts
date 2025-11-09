@@ -63,25 +63,26 @@ export default class Network {
   }
 
   // method to join the public lobby
-  async joinOrCreatePublic() {
-    this.room = await this.client.joinOrCreate(RoomType.PUBLIC)
+  async joinOrCreatePublic(credentials?: { username: string; password: string; avatarTexture?: string }) {
+    this.room = await this.client.joinOrCreate(RoomType.PUBLIC, credentials || {})
     this.initialize()
   }
 
   // method to join a custom room
-  async joinCustomById(roomId: string, password: string | null) {
-    this.room = await this.client.joinById(roomId, { password })
+  async joinCustomById(roomId: string, password: string | null, credentials?: { username: string; password: string; avatarTexture?: string }) {
+    this.room = await this.client.joinById(roomId, { password, ...credentials })
     this.initialize()
   }
 
   // method to create a custom room
-  async createCustom(roomData: IRoomData) {
+  async createCustom(roomData: IRoomData, credentials?: { username: string; password: string; avatarTexture?: string }) {
     const { name, description, password, autoDispose } = roomData
     this.room = await this.client.create(RoomType.CUSTOM, {
       name,
       description,
       password,
       autoDispose,
+      ...credentials,
     })
     this.initialize()
   }

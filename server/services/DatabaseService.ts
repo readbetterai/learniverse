@@ -1,4 +1,5 @@
 import { PrismaClient, User, NpcConversation, ConversationMessage, GameProgress } from '@prisma/client'
+import * as bcrypt from 'bcrypt'
 
 /**
  * DatabaseService - Singleton wrapper around Prisma Client
@@ -79,6 +80,7 @@ export class DatabaseService {
    */
   async createUser(data: {
     username: string
+    password: string
     sessionId?: string
     avatarTexture?: string
     email?: string
@@ -86,11 +88,31 @@ export class DatabaseService {
     return this.prisma.user.create({
       data: {
         username: data.username,
+        password: data.password,
         sessionId: data.sessionId,
         avatarTexture: data.avatarTexture || 'adam',
         email: data.email,
       },
     })
+  }
+
+  /**
+   * Verify user password and return user if valid
+   */
+  async verifyUserPassword(username: string, password: string): Promise<User | null> {
+    const user = await this.getUserByUsername(username)
+
+    if (!user) {
+      return null
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password)
+
+    if (!isPasswordValid) {
+      return null
+    }
+
+    return user
   }
 
   /**

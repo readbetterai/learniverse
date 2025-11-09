@@ -428,48 +428,52 @@ export class SkyOffice extends Room<OfficeState> {
   async onJoin(client: Client, options: any) {
     const player = new Player()
 
-    // Handle database user creation/loading
-    if (this.dbService) {
-      try {
-        const username = options.username || `Guest_${client.sessionId.substring(0, 8)}`
+    // Require authentication with username and password
+    if (!this.dbService) {
+      throw new ServerError(503, 'Database service is not available')
+    }
 
-        // Try to find existing user by username
-        let user = await this.dbService.getUserByUsername(username)
+    if (!options.username || !options.password) {
+      throw new ServerError(400, 'Username and password are required')
+    }
 
-        if (!user) {
-          // Create new user
-          user = await this.dbService.createUser({
-            username,
-            sessionId: client.sessionId,
-            avatarTexture: options.avatarTexture || 'adam',
-          })
-          console.log(`✅ Created new user: ${username} (${user.id})`)
-        } else {
-          // Update existing user's session
-          await this.dbService.updateUserSession(user.id, client.sessionId)
-          console.log(`✅ User ${username} rejoined (${user.id})`)
-        }
+    try {
+      // Verify user credentials
+      const user = await this.dbService.verifyUserPassword(options.username, options.password)
 
-        // Set player properties from database
-        player.userId = user.id
-        player.name = user.username
-
-        // Load last position from game progress
-        const progress = await this.dbService.getGameProgress(user.id)
-        if (progress && progress.lastX !== null && progress.lastY !== null) {
-          player.x = progress.lastX
-          player.y = progress.lastY
-          player.anim = progress.lastAnim || 'adam_idle_down'
-          console.log(`📍 Restored position for ${username}: (${progress.lastX}, ${progress.lastY})`)
-        }
-      } catch (error) {
-        console.error('Failed to create/load user from database:', error)
-        // Fallback to guest user without persistence
-        player.name = `Guest_${client.sessionId.substring(0, 8)}`
+      if (!user) {
+        throw new ServerError(401, 'Invalid username or password')
       }
-    } else {
-      // No database service, use guest name
-      player.name = options.username || `Guest_${client.sessionId.substring(0, 8)}`
+
+      // Update user's session
+      await this.dbService.updateUserSession(user.id, client.sessionId)
+      console.log(`✅ User ${user.username} authenticated and joined (${user.id})`)
+
+      // Set player properties from database
+      player.userId = user.id
+      player.name = user.username
+
+      // Apply avatar texture from options if provided, otherwise use saved one
+      if (options.avatarTexture) {
+        player.anim = options.avatarTexture + '_idle_down'
+      }
+
+      // Load last position from game progress
+      const progress = await this.dbService.getGameProgress(user.id)
+      if (progress && progress.lastX !== null && progress.lastY !== null) {
+        player.x = progress.lastX
+        player.y = progress.lastY
+        player.anim = progress.lastAnim || user.avatarTexture + '_idle_down'
+        console.log(`📍 Restored position for ${user.username}: (${progress.lastX}, ${progress.lastY})`)
+      }
+    } catch (error) {
+      // Re-throw ServerErrors (authentication failures)
+      if (error instanceof ServerError) {
+        throw error
+      }
+      // Log and throw other errors
+      console.error('Failed to authenticate user:', error)
+      throw new ServerError(500, 'Authentication failed. Please try again.')
     }
 
     this.state.players.set(client.sessionId, player)
