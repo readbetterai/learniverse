@@ -8,6 +8,7 @@ export interface IPlayer extends Schema {
   anim: string
   readyToConnect: boolean
   videoConnected: boolean
+  userId: string
 }
 
 export interface IComputer extends Schema {
