@@ -1,0 +1,84 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User/Player Account
+model User {
+  id            String   @id @default(uuid())
+  sessionId     String?  @unique // Current Colyseus session (nullable when offline)
+  username      String   @unique
+  email         String?  @unique
+  avatarTexture String   @default("adam")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  conversations NpcConversation[]
+  gameProgress  GameProgress?
+  settings      UserSettings?
+
+  @@index([username])
+  @@index([sessionId])
+}
+
+// NPC Conversation Sessions
+model NpcConversation {
+  id        String   @id @default(uuid())
+  userId    String
+  npcId     String   // e.g., 'guide' for Prof. Laura
+  startedAt DateTime @default(now())
+  endedAt   DateTime?
+
+  user     User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages ConversationMessage[]
+
+  @@index([userId, npcId])
+  @@index([startedAt])
+}
+
+// Individual messages in NPC conversations
+model ConversationMessage {
+  id             String   @id @default(uuid())
+  conversationId String
+  author         String   // 'player' or npcId
+  content        String   @db.Text
+  isNpc          Boolean  @default(false)
+  timestamp      DateTime @default(now())
+
+  conversation NpcConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, timestamp])
+}
+
+// User game progress and stats
+model GameProgress {
+  id                    String   @id @default(uuid())
+  userId                String   @unique
+  lastX                 Float?   // Last known X position
+  lastY                 Float?   // Last known Y position
+  lastAnim              String?  // Last known animation state
+  totalPlayTime         Int      @default(0) // seconds
+  npcInteractionCount   Int      @default(0)
+  lastActiveAt          DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// User preferences and settings
+model UserSettings {
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  videoEnabled      Boolean  @default(true)
+  audioEnabled      Boolean  @default(true)
+  chatNotifications Boolean  @default(true)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
