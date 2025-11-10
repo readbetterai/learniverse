@@ -18,6 +18,8 @@ import {
 } from './commands/WhiteboardUpdateArrayCommand'
 import { OpenAIService } from '../services/OpenAIService'
 import { DatabaseService } from '../services/DatabaseService'
+import { EventLoggingService } from '../services/EventLoggingService'
+import { EventType } from '../../types/EventTypes'
 
 export class SkyOffice extends Room<OfficeState> {
   private dispatcher = new Dispatcher(this)
@@ -26,6 +28,7 @@ export class SkyOffice extends Room<OfficeState> {
   private password: string | null = null
   private openAIService?: OpenAIService
   private dbService?: DatabaseService
+  private eventLogger?: EventLoggingService
 
   async onCreate(options: IRoomData) {
     const { name, description, password, autoDispose } = options
@@ -60,6 +63,15 @@ export class SkyOffice extends Room<OfficeState> {
     } catch (error) {
       console.warn('⚠️  Database service not available:', error instanceof Error ? error.message : error)
       console.warn('   User data and conversations will not be persisted')
+    }
+
+    // Initialize Event Logging service
+    try {
+      this.eventLogger = EventLoggingService.getInstance()
+      console.log('✅ Event logging service initialized successfully')
+    } catch (error) {
+      console.warn('⚠️  Event logging service not available:', error instanceof Error ? error.message : error)
+      console.warn('   Events will not be tracked')
     }
 
     // HARD-CODED: Add 5 computers in a room
@@ -264,6 +276,17 @@ export class SkyOffice extends Room<OfficeState> {
         }
       }
 
+      // Log NPC conversation start event
+      if (this.eventLogger && player.userId) {
+        await this.eventLogger.startInteraction(
+          player.userId,
+          client.sessionId,
+          'NPC',
+          npcId,
+          { npcName: npc.name, conversationId: (conversation as any).dbConversationId }
+        )
+      }
+
       // Send conversation history to client
       client.send(Message.START_NPC_CONVERSATION, {
         npcId,
@@ -300,6 +323,27 @@ export class SkyOffice extends Room<OfficeState> {
       conversation.messages.push(playerMessage)
 
       console.log(`Player ${player.name} sent message to NPC ${npc.name}: ${content}`)
+
+      // Log message sent event
+      if (this.eventLogger && player.userId) {
+        await this.eventLogger.logEvent(
+          player.userId,
+          EventType.NPC_MESSAGE_SENT,
+          {
+            npcId,
+            npcName: npc.name,
+            message: content,
+            messageLength: content.length,
+            timestamp: new Date()
+          },
+          client.sessionId
+        )
+
+        // Update session metrics
+        await this.eventLogger.updateSessionMetrics(client.sessionId, {
+          npcMessageCount: 1
+        })
+      }
 
       // Save player message to database
       if (this.dbService && dbConversationId) {
@@ -341,6 +385,22 @@ export class SkyOffice extends Room<OfficeState> {
           conversation.messages.push(npcResponseMessage)
 
           console.log(`Prof. Laura responded to ${player.name}: ${aiResponse}`)
+
+          // Log NPC message received event
+          if (this.eventLogger && player.userId) {
+            await this.eventLogger.logEvent(
+              player.userId,
+              EventType.NPC_MESSAGE_RECEIVED,
+              {
+                npcId,
+                npcName: npc.name,
+                message: aiResponse,
+                messageLength: aiResponse.length,
+                timestamp: new Date()
+              },
+              client.sessionId
+            )
+          }
 
           // Save NPC response to database
           if (this.dbService && dbConversationId) {
@@ -387,7 +447,7 @@ export class SkyOffice extends Room<OfficeState> {
     })
 
     // when a player ends a conversation with an NPC
-    this.onMessage(Message.END_NPC_CONVERSATION, (client, message: { npcId: string }) => {
+    this.onMessage(Message.END_NPC_CONVERSATION, async (client, message: { npcId: string }) => {
       const { npcId } = message
       const npc = this.state.npcs.get(npcId)
       const player = this.state.players.get(client.sessionId)
@@ -395,6 +455,23 @@ export class SkyOffice extends Room<OfficeState> {
       if (!npc || !player) return
 
       console.log(`Player ${player.name} ended conversation with NPC ${npc.name}`)
+
+      // Log conversation end event
+      if (this.eventLogger && player.userId) {
+        const result = await this.eventLogger.endInteraction(
+          client.sessionId,
+          'NPC',
+          npcId
+        )
+
+        if (result) {
+          // Update session metrics with interaction count and duration
+          await this.eventLogger.updateSessionMetrics(client.sessionId, {
+            npcInteractionCount: 1,
+            npcTotalDuration: Math.floor(result.duration / 1000) // Convert to seconds
+          })
+        }
+      }
 
       // Note: We keep the conversation in memory (as per requirements - persist history)
       // If you wanted to clear it, you would do: npc.conversations.delete(client.sessionId)
@@ -449,9 +526,33 @@ export class SkyOffice extends Room<OfficeState> {
       await this.dbService.updateUserSession(user.id, client.sessionId)
       console.log(`✅ User ${user.username} authenticated and joined (${user.id})`)
 
+      // Log login event
+      if (this.eventLogger) {
+        await this.eventLogger.logEvent(
+          user.id,
+          EventType.USER_LOGIN,
+          {
+            avatar: options.avatarTexture || user.avatarTexture,
+            timestamp: new Date(),
+            username: user.username
+          },
+          client.sessionId
+        )
+
+        // Create session metrics
+        await this.eventLogger.createSessionMetrics(user.id, client.sessionId)
+      }
+
       // Set player properties from database
       player.userId = user.id
       player.name = user.username
+
+      // Store join time on client for session duration calculation
+      (client as any).userData = {
+        ...((client as any).userData || {}),
+        joinedAt: Date.now(),
+        userId: user.id
+      }
 
       // Apply avatar texture from options if provided, otherwise use saved one
       if (options.avatarTexture) {
@@ -486,24 +587,51 @@ export class SkyOffice extends Room<OfficeState> {
 
   async onLeave(client: Client, consented: boolean) {
     const player = this.state.players.get(client.sessionId)
+    const joinTime = (client as any).userData?.joinedAt || Date.now()
 
     // Save player state to database before removing
-    if (player && player.userId && this.dbService) {
-      try {
-        // Save current position and update last active
-        await this.dbService.saveGameProgress({
-          userId: player.userId,
-          lastX: player.x,
-          lastY: player.y,
-          lastAnim: player.anim,
+    if (player && player.userId) {
+      // Log logout event and update session metrics
+      if (this.eventLogger) {
+        const sessionDuration = Date.now() - joinTime
+
+        await this.eventLogger.logEvent(
+          player.userId,
+          EventType.USER_LOGOUT,
+          {
+            sessionDuration: Math.floor(sessionDuration / 1000), // Convert to seconds
+            finalPosition: { x: player.x, y: player.y }
+          },
+          client.sessionId
+        )
+
+        // Update session metrics with final data
+        await this.eventLogger.updateSessionMetrics(client.sessionId, {
+          logoutTime: new Date(),
+          totalDuration: Math.floor(sessionDuration / 1000)
         })
 
-        // Clear session ID
-        await this.dbService.clearUserSession(player.userId)
+        // Save any pending movement patterns
+        await this.eventLogger.saveMovementPattern(player.userId, client.sessionId)
+      }
 
-        console.log(`💾 Saved progress for ${player.name} at (${player.x}, ${player.y})`)
-      } catch (error) {
-        console.error('Failed to save player progress on leave:', error)
+      if (this.dbService) {
+        try {
+          // Save current position and update last active
+          await this.dbService.saveGameProgress({
+            userId: player.userId,
+            lastX: player.x,
+            lastY: player.y,
+            lastAnim: player.anim,
+          })
+
+          // Clear session ID
+          await this.dbService.clearUserSession(player.userId)
+
+          console.log(`💾 Saved progress for ${player.name} at (${player.x}, ${player.y})`)
+        } catch (error) {
+          console.error('Failed to save player progress on leave:', error)
+        }
       }
     }
 

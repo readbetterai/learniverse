@@ -15,6 +15,12 @@ export class Player extends Schema implements IPlayer {
   @type('boolean') readyToConnect = false
   @type('boolean') videoConnected = false
   @type('string') userId = '' // Database user ID for persistence
+
+  // Event tracking properties (not synchronized to clients)
+  lastSampleTime?: number
+  currentZone?: string
+  isIdle?: boolean
+  idleStartTime?: number
 }
 
 export class Computer extends Schema implements IComputer {

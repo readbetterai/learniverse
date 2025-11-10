@@ -324,3 +324,81 @@ See `/server/scripts/README.md` for detailed documentation on user creation.
 - Video connections established when players are in proximity
 - Screen sharing activated when interacting with Computer items
 - Connection state managed via Redux stores (UserStore.ts tracks peer connections)
+
+## Event Logging System
+
+The project includes a comprehensive event logging system for tracking user behavior and interactions.
+
+### Architecture
+- **EventLoggingService** (`server/services/EventLoggingService.ts`) - Singleton service that manages event logging with batching and async processing
+- **Event batching** - Events are queued and flushed to database every 3 seconds (or when queue reaches 100 events)
+- **Zone-based tracking** - Movement is sampled every 10 seconds rather than logging every position update
+- **Non-blocking** - All logging operations are async to avoid impacting game performance
+
+### Database Tables
+Four new tables track different aspects of user behavior:
+
+1. **UserEvent** - General event logging
+   - Tracks all events (login, logout, NPC interactions, movement, idle states)
+   - Includes eventType, eventCategory, metadata (JSON), timestamp
+   - Indexed by userId, eventType, and sessionId
+
+2. **SessionMetrics** - Aggregated session statistics
+   - Tracks login/logout times, total duration
+   - NPC interaction counts and durations
+   - Distance traveled and zones visited
+
+3. **InteractionSession** - NPC conversation tracking
+   - Records start/end times and duration of NPC conversations
+   - Links to user and Colyseus session IDs
+   - Stores metadata about the interaction
+
+4. **MovementPattern** - Player movement and zone tracking
+   - Stores sampled positions (every 10 seconds)
+   - Tracks zone transitions with enter/exit times
+   - Calculates total distance traveled
+
+### Event Types
+Events are categorized and include:
+- **AUTH**: USER_LOGIN, USER_LOGOUT, SESSION_START, SESSION_END
+- **NPC**: NPC_CONVERSATION_START/END, NPC_MESSAGE_SENT/RECEIVED
+- **MOVEMENT**: MOVEMENT_SAMPLE, ZONE_ENTER/EXIT, IDLE_START/END
+- **SOCIAL**: PLAYER_PROXIMITY_START/END (for future multiplayer interactions)
+
+### Zone Definitions
+The game world is divided into zones for tracking player exploration:
+- **SPAWN**: Starting area (0-200, 0-200)
+- **NPC_AREA**: NPC interaction zone (400-600, 300-500)
+- **EXPLORATION_ZONE**: General exploration area
+- **UNKNOWN**: Areas outside defined zones
+
+### Integration Points
+Event logging is integrated at key points:
+- **SkyOffice.ts**: Login/logout, NPC conversations, session management
+- **PlayerUpdateCommand.ts**: Movement sampling, zone transitions, idle detection
+- **Player schema**: Added tracking properties (lastSampleTime, currentZone, isIdle)
+
+### Monitoring Tools
+Several tools are available for monitoring logged events:
+
+1. **checkEventLogs.ts** - CLI script for quick event summary
+   ```bash
+   npx ts-node --transpile-only server/scripts/checkEventLogs.ts
+   ```
+
+2. **viewEventLogs.sql** - SQL queries for detailed analysis
+   ```bash
+   psql learniverse < server/scripts/viewEventLogs.sql
+   ```
+
+3. **Prisma Studio** - Visual database browser
+   ```bash
+   npx prisma studio --schema=server/prisma/schema.prisma
+   ```
+
+### Implementation Notes
+- Events are logged asynchronously to avoid blocking game operations
+- Movement is sampled rather than logged continuously to reduce data volume
+- Zone transitions trigger immediate events for tracking exploration patterns
+- NPC conversations are linked to both the conversation records and event logs
+- Session metrics are updated incrementally throughout the session
