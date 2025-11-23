@@ -1,0 +1,15 @@
+{
+    admin off
+    persist_config off
+    auto_https off
+}
+
+:{$PORT:8080}
+
+root * /usr/share/caddy
+encode gzip
+
+# SPA routing - serve index.html for all routes
+try_files {path} {path}/ /index.html
+
+file_server
