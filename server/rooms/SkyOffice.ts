@@ -23,7 +23,7 @@ import { EventType } from '../../types/EventTypes'
 
 export class SkyOffice extends Room<OfficeState> {
   private dispatcher = new Dispatcher(this)
-  private name: string
+  private _roomName: string
   private description: string
   private password: string | null = null
   private openAIService?: OpenAIService
@@ -32,7 +32,7 @@ export class SkyOffice extends Room<OfficeState> {
 
   async onCreate(options: IRoomData) {
     const { name, description, password, autoDispose } = options
-    this.name = name
+    this._roomName = name
     this.description = description
     this.autoDispose = autoDispose
 
@@ -76,12 +76,12 @@ export class SkyOffice extends Room<OfficeState> {
 
     // HARD-CODED: Add 5 computers in a room
     for (let i = 0; i < 5; i++) {
-      this.state.computers.set(String(i), new Computer())
+      this.state.computers.set(i.toString(), new Computer())
     }
 
     // HARD-CODED: Add 3 whiteboards in a room
     for (let i = 0; i < 3; i++) {
-      this.state.whiteboards.set(String(i), new Whiteboard())
+      this.state.whiteboards.set(i.toString(), new Whiteboard())
     }
 
     // Spawn NPCs
@@ -196,7 +196,7 @@ export class SkyOffice extends Room<OfficeState> {
 
       if (!npc || !player) return
 
-      console.log(`Player ${player.name} started conversation with NPC ${npc.name}`)
+      console.log(`Player ${player.playerName} started conversation with NPC ${npc.name}`)
 
       // Create or get existing conversation in memory (for real-time sync)
       if (!npc.conversations.has(client.sessionId)) {
@@ -314,7 +314,7 @@ export class SkyOffice extends Room<OfficeState> {
 
       // Create player message
       const playerMessage = new NpcMessage()
-      playerMessage.author = player.name
+      playerMessage.author = player.playerName
       playerMessage.content = content
       playerMessage.isNpc = false
       playerMessage.createdAt = new Date().getTime()
@@ -322,7 +322,7 @@ export class SkyOffice extends Room<OfficeState> {
       // Add to in-memory conversation
       conversation.messages.push(playerMessage)
 
-      console.log(`Player ${player.name} sent message to NPC ${npc.name}: ${content}`)
+      console.log(`Player ${player.playerName} sent message to NPC ${npc.name}: ${content}`)
 
       // Log message sent event
       if (this.eventLogger && player.userId) {
@@ -350,7 +350,7 @@ export class SkyOffice extends Room<OfficeState> {
         try {
           await this.dbService.addConversationMessage({
             conversationId: dbConversationId,
-            author: player.name,
+            author: player.playerName,
             content: content,
             isNpc: false,
           })
@@ -373,7 +373,7 @@ export class SkyOffice extends Room<OfficeState> {
           const aiResponse = await this.openAIService.getChatResponse(
             conversationHistory,
             npc.name,
-            player.name
+            player.playerName
           )
 
           // Create and add NPC response message
@@ -384,7 +384,7 @@ export class SkyOffice extends Room<OfficeState> {
           npcResponseMessage.createdAt = new Date().getTime()
           conversation.messages.push(npcResponseMessage)
 
-          console.log(`Prof. Laura responded to ${player.name}: ${aiResponse}`)
+          console.log(`Prof. Laura responded to ${player.playerName}: ${aiResponse}`)
 
           // Log NPC message received event
           if (this.eventLogger && player.userId) {
@@ -417,7 +417,7 @@ export class SkyOffice extends Room<OfficeState> {
           }
 
         } catch (error) {
-          console.error(`Failed to get AI response for player ${player.name}:`, error)
+          console.error(`Failed to get AI response for player ${player.playerName}:`, error)
 
           // Send friendly fallback message
           const fallbackMessage = new NpcMessage()
@@ -427,7 +427,7 @@ export class SkyOffice extends Room<OfficeState> {
           fallbackMessage.createdAt = new Date().getTime()
           conversation.messages.push(fallbackMessage)
 
-          console.log(`Prof. Laura sent fallback message to ${player.name}`)
+          console.log(`Prof. Laura sent fallback message to ${player.playerName}`)
 
           // Save fallback message to database
           if (this.dbService && dbConversationId) {
@@ -454,7 +454,7 @@ export class SkyOffice extends Room<OfficeState> {
 
       if (!npc || !player) return
 
-      console.log(`Player ${player.name} ended conversation with NPC ${npc.name}`)
+      console.log(`Player ${player.playerName} ended conversation with NPC ${npc.name}`)
 
       // Log conversation end event
       if (this.eventLogger && player.userId) {
@@ -545,7 +545,7 @@ export class SkyOffice extends Room<OfficeState> {
 
       // Set player properties from database
       player.userId = user.id
-      player.name = user.username
+      player.playerName = user.username as string
 
       // Store join time on client for session duration calculation
       (client as any).userData = {
@@ -580,7 +580,7 @@ export class SkyOffice extends Room<OfficeState> {
     this.state.players.set(client.sessionId, player)
     client.send(Message.SEND_ROOM_DATA, {
       id: this.roomId,
-      name: this.name,
+      name: this._roomName,
       description: this.description,
     })
   }
@@ -628,7 +628,7 @@ export class SkyOffice extends Room<OfficeState> {
           // Clear session ID
           await this.dbService.clearUserSession(player.userId)
 
-          console.log(`💾 Saved progress for ${player.name} at (${player.x}, ${player.y})`)
+          console.log(`💾 Saved progress for ${player.playerName} at (${player.x}, ${player.y})`)
         } catch (error) {
           console.error('Failed to save player progress on leave:', error)
         }

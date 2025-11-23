@@ -2,13 +2,18 @@ import { Schema, SetSchema, MapSchema } from '@colyseus/schema'
 import { INPC } from './INpc'
 
 export interface IPlayer extends Schema {
-  name: string
+  playerName: string
   x: number
   y: number
   anim: string
   readyToConnect: boolean
   videoConnected: boolean
   userId: string
+  // Event tracking properties (not synchronized to clients)
+  lastSampleTime?: number
+  currentZone?: string
+  isIdle?: boolean
+  idleStartTime?: number
 }
 
 export interface IComputer extends Schema {
