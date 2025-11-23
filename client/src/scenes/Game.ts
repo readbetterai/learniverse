@@ -4,10 +4,7 @@ import Phaser from 'phaser'
 import { createCharacterAnims } from '../anims/CharacterAnims'
 
 import Item from '../items/Item'
-import Chair from '../items/Chair'
-import Computer from '../items/Computer'
-import Whiteboard from '../items/Whiteboard'
-import VendingMachine from '../items/VendingMachine'
+import Npc from '../items/Npc'
 import '../characters/MyPlayer'
 import '../characters/OtherPlayer'
 import MyPlayer from '../characters/MyPlayer'
@@ -15,11 +12,13 @@ import OtherPlayer from '../characters/OtherPlayer'
 import PlayerSelector from '../characters/PlayerSelector'
 import Network from '../services/Network'
 import { IPlayer } from '../../../types/IOfficeState'
+import { INPC } from '../../../types/INpc'
 import { PlayerBehavior } from '../../../types/PlayerBehavior'
 import { ItemType } from '../../../types/Items'
+import { phaserEvents, Event } from '../events/EventCenter'
 
 import store from '../stores'
-import { setFocused, setShowChat } from '../stores/ChatStore'
+import { setFocused, setShowChat, endNpcChat } from '../stores/ChatStore'
 import { NavKeys, Keyboard } from '../../../types/KeyboardState'
 
 export default class Game extends Phaser.Scene {
@@ -32,8 +31,8 @@ export default class Game extends Phaser.Scene {
   private playerSelector!: Phaser.GameObjects.Zone
   private otherPlayers!: Phaser.Physics.Arcade.Group
   private otherPlayerMap = new Map<string, OtherPlayer>()
-  computerMap = new Map<string, Computer>()
-  private whiteboardMap = new Map<string, Whiteboard>()
+  private npcs!: Phaser.Physics.Arcade.StaticGroup
+  private npcMap = new Map<string, { sprite: Npc; nameText: Phaser.GameObjects.Text }>()
 
   constructor() {
     super('game')
@@ -83,58 +82,11 @@ export default class Game extends Phaser.Scene {
 
     // debugDraw(groundLayer, this)
 
-    this.myPlayer = this.add.myPlayer(705, 500, 'adam', this.network.mySessionId)
+    this.myPlayer = this.add.myPlayer(400, 400, 'adam', this.network.mySessionId)
     this.playerSelector = new PlayerSelector(this, 0, 0, 16, 16)
 
-    // import chair objects from Tiled map to Phaser
-    const chairs = this.physics.add.staticGroup({ classType: Chair })
-    const chairLayer = this.map.getObjectLayer('Chair')
-    chairLayer.objects.forEach((chairObj) => {
-      const item = this.addObjectFromTiled(chairs, chairObj, 'chairs', 'chair') as Chair
-      // custom properties[0] is the object direction specified in Tiled
-      item.itemDirection = chairObj.properties[0].value
-    })
-
-    // import computers objects from Tiled map to Phaser
-    const computers = this.physics.add.staticGroup({ classType: Computer })
-    const computerLayer = this.map.getObjectLayer('Computer')
-    computerLayer.objects.forEach((obj, i) => {
-      const item = this.addObjectFromTiled(computers, obj, 'computers', 'computer') as Computer
-      item.setDepth(item.y + item.height * 0.27)
-      const id = `${i}`
-      item.id = id
-      this.computerMap.set(id, item)
-    })
-
-    // import whiteboards objects from Tiled map to Phaser
-    const whiteboards = this.physics.add.staticGroup({ classType: Whiteboard })
-    const whiteboardLayer = this.map.getObjectLayer('Whiteboard')
-    whiteboardLayer.objects.forEach((obj, i) => {
-      const item = this.addObjectFromTiled(
-        whiteboards,
-        obj,
-        'whiteboards',
-        'whiteboard'
-      ) as Whiteboard
-      const id = `${i}`
-      item.id = id
-      this.whiteboardMap.set(id, item)
-    })
-
-    // import vending machine objects from Tiled map to Phaser
-    const vendingMachines = this.physics.add.staticGroup({ classType: VendingMachine })
-    const vendingMachineLayer = this.map.getObjectLayer('VendingMachine')
-    vendingMachineLayer.objects.forEach((obj, i) => {
-      this.addObjectFromTiled(vendingMachines, obj, 'vendingmachines', 'vendingmachine')
-    })
-
-    // import other objects from Tiled map to Phaser
-    this.addGroupFromTiled('Wall', 'tiles_wall', 'FloorAndGround', false)
-    this.addGroupFromTiled('Objects', 'office', 'Modern_Office_Black_Shadow', false)
-    this.addGroupFromTiled('ObjectsOnCollide', 'office', 'Modern_Office_Black_Shadow', true)
-    this.addGroupFromTiled('GenericObjects', 'generic', 'Generic', false)
-    this.addGroupFromTiled('GenericObjectsOnCollide', 'generic', 'Generic', true)
-    this.addGroupFromTiled('Basement', 'basement', 'Basement', true)
+    // create NPC static group (NPCs will be spawned dynamically from server)
+    this.npcs = this.physics.add.staticGroup({ classType: Npc })
 
     this.otherPlayers = this.physics.add.group({ classType: OtherPlayer })
 
@@ -142,11 +94,10 @@ export default class Game extends Phaser.Scene {
     this.cameras.main.startFollow(this.myPlayer, true)
 
     this.physics.add.collider([this.myPlayer, this.myPlayer.playerContainer], groundLayer)
-    this.physics.add.collider([this.myPlayer, this.myPlayer.playerContainer], vendingMachines)
 
     this.physics.add.overlap(
       this.playerSelector,
-      [chairs, computers, whiteboards, vendingMachines],
+      this.npcs,
       this.handleItemSelectorOverlap,
       undefined,
       this
@@ -168,7 +119,16 @@ export default class Game extends Phaser.Scene {
     this.network.onPlayerUpdated(this.handlePlayerUpdated, this)
     this.network.onItemUserAdded(this.handleItemUserAdded, this)
     this.network.onItemUserRemoved(this.handleItemUserRemoved, this)
-    this.network.onChatMessageAdded(this.handleChatMessageAdded, this)
+
+    // register NPC event listeners
+    phaserEvents.on(Event.NPC_JOINED, this.handleNPCJoined, this)
+    phaserEvents.on(Event.NPC_UPDATED, this.handleNPCUpdated, this)
+
+    // Handle NPCs that were already spawned before this scene initialized
+    const existingNPCs = this.network.getExistingNPCs()
+    existingNPCs.forEach(({ npc, key }) => {
+      this.handleNPCJoined(npc, key)
+    })
   }
 
   private handleItemSelectorOverlap(playerSelector, selectionItem) {
@@ -257,34 +217,98 @@ export default class Game extends Phaser.Scene {
   }
 
   private handleItemUserAdded(playerId: string, itemId: string, itemType: ItemType) {
-    if (itemType === ItemType.COMPUTER) {
-      const computer = this.computerMap.get(itemId)
-      computer?.addCurrentUser(playerId)
-    } else if (itemType === ItemType.WHITEBOARD) {
-      const whiteboard = this.whiteboardMap.get(itemId)
-      whiteboard?.addCurrentUser(playerId)
-    }
+    // Computers and whiteboards removed - no items to handle
   }
 
   private handleItemUserRemoved(playerId: string, itemId: string, itemType: ItemType) {
-    if (itemType === ItemType.COMPUTER) {
-      const computer = this.computerMap.get(itemId)
-      computer?.removeCurrentUser(playerId)
-    } else if (itemType === ItemType.WHITEBOARD) {
-      const whiteboard = this.whiteboardMap.get(itemId)
-      whiteboard?.removeCurrentUser(playerId)
-    }
+    // Computers and whiteboards removed - no items to handle
   }
 
-  private handleChatMessageAdded(playerId: string, content: string) {
-    const otherPlayer = this.otherPlayerMap.get(playerId)
-    otherPlayer?.updateDialogBubble(content)
+  // function to add new NPC when spawned by server
+  private handleNPCJoined(npcData: INPC, npcId: string) {
+    // Create NPC sprite at the specified position
+    const npc = this.npcs.get(npcData.x, npcData.y, npcData.texture) as Npc
+
+    if (!npc) return
+
+    npc.npcId = npcId
+    npc.npcName = npcData.name
+
+    // Set depth based on y position (for proper layering)
+    npc.setDepth(npcData.y)
+
+    // Adjust hitbox (similar to player)
+    npc.body.setSize(npc.width * 0.5, npc.height * 0.5)
+
+    // Create name label above NPC
+    const nameText = this.add.text(npcData.x, npcData.y - 30, npcData.name, {
+      fontSize: '14px',
+      color: '#FFD700', // Gold color for NPCs
+      backgroundColor: '#000000',
+      padding: { x: 6, y: 3 },
+    })
+    nameText.setOrigin(0.5)
+    nameText.setDepth(npcData.y)
+
+    // Store references
+    this.npcMap.set(npcId, { sprite: npc, nameText })
+
+    // Play idle animation
+    npc.anims.play(npcData.anim, true)
+  }
+
+  // function to update NPC when server state changes
+  private handleNPCUpdated(field: string, value: any, npcId: string) {
+    const npcObj = this.npcMap.get(npcId)
+    if (!npcObj) return
+
+    const { sprite, nameText } = npcObj
+
+    switch (field) {
+      case 'x':
+        sprite.x = value
+        nameText.x = value
+        break
+      case 'y':
+        sprite.y = value
+        nameText.y = value - 30
+        sprite.setDepth(value)
+        nameText.setDepth(value)
+        break
+      case 'anim':
+        sprite.anims.play(value, true)
+        break
+    }
   }
 
   update(t: number, dt: number) {
     if (this.myPlayer && this.network) {
       this.playerSelector.update(this.myPlayer, this.cursors)
       this.myPlayer.update(this.playerSelector, this.cursors, this.keyE, this.keyR, this.network)
+
+      // Check proximity to active NPC conversation
+      const currentNpcId = store.getState().chat.currentNpcId
+      const inConversation = store.getState().chat.inConversation
+
+      if (currentNpcId && inConversation) {
+        const npcObj = this.npcMap.get(currentNpcId)
+        if (npcObj) {
+          const distance = Phaser.Math.Distance.Between(
+            this.myPlayer.x,
+            this.myPlayer.y,
+            npcObj.sprite.x,
+            npcObj.sprite.y
+          )
+
+          const MAX_CONVERSATION_DISTANCE = 150 // pixels
+
+          if (distance > MAX_CONVERSATION_DISTANCE) {
+            // Player walked too far away, close conversation
+            this.network.endNpcConversation(currentNpcId)
+            store.dispatch(endNpcChat())
+          }
+        }
+      }
     }
   }
 }

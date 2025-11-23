@@ -2,6 +2,7 @@ import bcrypt from 'bcrypt'
 import { Room, Client, ServerError } from 'colyseus'
 import { Dispatcher } from '@colyseus/command'
 import { Player, OfficeState, Computer, Whiteboard } from './schema/OfficeState'
+import { NPC, NpcMessage, Conversation } from './schema/NpcState'
 import { Message } from '../../types/Messages'
 import { IRoomData } from '../../types/Rooms'
 import { whiteboardRoomIds } from './schema/OfficeState'
@@ -15,13 +16,19 @@ import {
   WhiteboardAddUserCommand,
   WhiteboardRemoveUserCommand,
 } from './commands/WhiteboardUpdateArrayCommand'
-import ChatMessageUpdateCommand from './commands/ChatMessageUpdateCommand'
+import { OpenAIService } from '../services/OpenAIService'
+import { DatabaseService } from '../services/DatabaseService'
+import { EventLoggingService } from '../services/EventLoggingService'
+import { EventType } from '../../types/EventTypes'
 
 export class SkyOffice extends Room<OfficeState> {
   private dispatcher = new Dispatcher(this)
   private name: string
   private description: string
   private password: string | null = null
+  private openAIService?: OpenAIService
+  private dbService?: DatabaseService
+  private eventLogger?: EventLoggingService
 
   async onCreate(options: IRoomData) {
     const { name, description, password, autoDispose } = options
@@ -39,6 +46,34 @@ export class SkyOffice extends Room<OfficeState> {
 
     this.setState(new OfficeState())
 
+    // Initialize OpenAI service for Prof. Laura
+    try {
+      this.openAIService = new OpenAIService()
+      console.log('✅ OpenAI service initialized successfully')
+    } catch (error) {
+      console.warn('⚠️  OpenAI service not available:', error instanceof Error ? error.message : error)
+      console.warn('   Prof. Laura will not respond to messages automatically')
+    }
+
+    // Initialize Database service
+    try {
+      this.dbService = DatabaseService.getInstance()
+      await this.dbService.connect()
+      console.log('✅ Database service initialized successfully')
+    } catch (error) {
+      console.warn('⚠️  Database service not available:', error instanceof Error ? error.message : error)
+      console.warn('   User data and conversations will not be persisted')
+    }
+
+    // Initialize Event Logging service
+    try {
+      this.eventLogger = EventLoggingService.getInstance()
+      console.log('✅ Event logging service initialized successfully')
+    } catch (error) {
+      console.warn('⚠️  Event logging service not available:', error instanceof Error ? error.message : error)
+      console.warn('   Events will not be tracked')
+    }
+
     // HARD-CODED: Add 5 computers in a room
     for (let i = 0; i < 5; i++) {
       this.state.computers.set(String(i), new Computer())
@@ -48,6 +83,9 @@ export class SkyOffice extends Room<OfficeState> {
     for (let i = 0; i < 3; i++) {
       this.state.whiteboards.set(String(i), new Whiteboard())
     }
+
+    // Spawn NPCs
+    this.spawnNPCs()
 
     // when a player connect to a computer, add to the computer connectedUser array
     this.onMessage(Message.CONNECT_TO_COMPUTER, (client, message: { computerId: string }) => {
@@ -138,21 +176,320 @@ export class SkyOffice extends Room<OfficeState> {
       })
     })
 
-    // when a player send a chat message, update the message array and broadcast to all connected clients except the sender
-    this.onMessage(Message.ADD_CHAT_MESSAGE, (client, message: { content: string }) => {
-      // update the message array (so that players join later can also see the message)
-      this.dispatcher.dispatch(new ChatMessageUpdateCommand(), {
-        client,
-        content: message.content,
-      })
+    // when a player interacts with an NPC
+    this.onMessage(Message.INTERACT_WITH_NPC, (client, message: { npcId: string }) => {
+      const { npcId } = message
+      console.log(`Player ${client.sessionId} interacted with NPC ${npcId}`)
 
-      // broadcast to all currently connected clients except the sender (to render in-game dialog on top of the character)
-      this.broadcast(
-        Message.ADD_CHAT_MESSAGE,
-        { clientId: client.sessionId, content: message.content },
-        { except: client }
-      )
+      // Send a simple response back to the client
+      client.send(Message.INTERACT_WITH_NPC, {
+        npcId,
+        message: 'Hello! Welcome to SkyOffice!',
+      })
     })
+
+    // when a player starts a conversation with an NPC
+    this.onMessage(Message.START_NPC_CONVERSATION, async (client, message: { npcId: string }) => {
+      const { npcId } = message
+      const npc = this.state.npcs.get(npcId)
+      const player = this.state.players.get(client.sessionId)
+
+      if (!npc || !player) return
+
+      console.log(`Player ${player.name} started conversation with NPC ${npc.name}`)
+
+      // Create or get existing conversation in memory (for real-time sync)
+      if (!npc.conversations.has(client.sessionId)) {
+        const conversation = new Conversation()
+        npc.conversations.set(client.sessionId, conversation)
+      }
+
+      const conversation = npc.conversations.get(client.sessionId)!
+
+      // Load conversation history from database
+      if (this.dbService && player.userId) {
+        try {
+          const dbConversation = await this.dbService.getActiveConversation(player.userId, npcId)
+
+          if (dbConversation) {
+            // Conversation exists in DB - restore messages to in-memory state
+            console.log(`📚 Loaded ${dbConversation.messages.length} messages from database`)
+
+            // Clear and populate conversation messages from database
+            conversation.messages.clear()
+            dbConversation.messages.forEach((dbMsg) => {
+              const msg = new NpcMessage()
+              msg.author = dbMsg.author
+              msg.content = dbMsg.content
+              msg.isNpc = dbMsg.isNpc
+              msg.createdAt = dbMsg.timestamp.getTime()
+              conversation.messages.push(msg)
+            })
+
+            // Store the DB conversation ID for later use
+            ;(conversation as any).dbConversationId = dbConversation.id
+          } else {
+            // New conversation - create in database
+            const newDbConversation = await this.dbService.createConversation(player.userId, npcId)
+            ;(conversation as any).dbConversationId = newDbConversation.id
+            console.log(`✅ Created new conversation in database: ${newDbConversation.id}`)
+
+            // Add static greeting for Prof. Laura when conversation is first started
+            if (npcId === 'guide') {
+              const greetingMessage = new NpcMessage()
+              greetingMessage.author = npc.name
+              greetingMessage.content = "Hello! I'm Prof. Laura. How can I help you with your studies today?"
+              greetingMessage.isNpc = true
+              greetingMessage.createdAt = new Date().getTime()
+              conversation.messages.push(greetingMessage)
+
+              // Save greeting to database
+              await this.dbService.addConversationMessage({
+                conversationId: newDbConversation.id,
+                author: npc.name,
+                content: greetingMessage.content,
+                isNpc: true,
+              })
+            }
+          }
+        } catch (error) {
+          console.error('Failed to load/create conversation from database:', error)
+          // Fall back to in-memory only
+          if (conversation.messages.length === 0 && npcId === 'guide') {
+            const greetingMessage = new NpcMessage()
+            greetingMessage.author = npc.name
+            greetingMessage.content = "Hello! I'm Prof. Laura. How can I help you with your studies today?"
+            greetingMessage.isNpc = true
+            greetingMessage.createdAt = new Date().getTime()
+            conversation.messages.push(greetingMessage)
+          }
+        }
+      } else {
+        // No database - add greeting in memory only
+        if (conversation.messages.length === 0 && npcId === 'guide') {
+          const greetingMessage = new NpcMessage()
+          greetingMessage.author = npc.name
+          greetingMessage.content = "Hello! I'm Prof. Laura. How can I help you with your studies today?"
+          greetingMessage.isNpc = true
+          greetingMessage.createdAt = new Date().getTime()
+          conversation.messages.push(greetingMessage)
+        }
+      }
+
+      // Log NPC conversation start event
+      if (this.eventLogger && player.userId) {
+        await this.eventLogger.startInteraction(
+          player.userId,
+          client.sessionId,
+          'NPC',
+          npcId,
+          { npcName: npc.name, conversationId: (conversation as any).dbConversationId }
+        )
+      }
+
+      // Send conversation history to client
+      client.send(Message.START_NPC_CONVERSATION, {
+        npcId,
+        success: true,
+      })
+    })
+
+    // when a player sends a message to an NPC
+    this.onMessage(Message.SEND_NPC_MESSAGE, async (client, message: { npcId: string; content: string }) => {
+      const { npcId, content } = message
+      const npc = this.state.npcs.get(npcId)
+      const player = this.state.players.get(client.sessionId)
+
+      if (!npc || !player) return
+
+      // Get or create conversation
+      let conversation = npc.conversations.get(client.sessionId)
+      if (!conversation) {
+        conversation = new Conversation()
+        npc.conversations.set(client.sessionId, conversation)
+      }
+
+      // Get DB conversation ID (stored earlier in START_NPC_CONVERSATION)
+      const dbConversationId = (conversation as any).dbConversationId
+
+      // Create player message
+      const playerMessage = new NpcMessage()
+      playerMessage.author = player.name
+      playerMessage.content = content
+      playerMessage.isNpc = false
+      playerMessage.createdAt = new Date().getTime()
+
+      // Add to in-memory conversation
+      conversation.messages.push(playerMessage)
+
+      console.log(`Player ${player.name} sent message to NPC ${npc.name}: ${content}`)
+
+      // Log message sent event
+      if (this.eventLogger && player.userId) {
+        await this.eventLogger.logEvent(
+          player.userId,
+          EventType.NPC_MESSAGE_SENT,
+          {
+            npcId,
+            npcName: npc.name,
+            message: content,
+            messageLength: content.length,
+            timestamp: new Date()
+          },
+          client.sessionId
+        )
+
+        // Update session metrics
+        await this.eventLogger.updateSessionMetrics(client.sessionId, {
+          npcMessageCount: 1
+        })
+      }
+
+      // Save player message to database
+      if (this.dbService && dbConversationId) {
+        try {
+          await this.dbService.addConversationMessage({
+            conversationId: dbConversationId,
+            author: player.name,
+            content: content,
+            isNpc: false,
+          })
+        } catch (error) {
+          console.error('Failed to save player message to database:', error)
+        }
+      }
+
+      // Generate AI response for Prof. Laura
+      if (npcId === 'guide' && this.openAIService) {
+        try {
+          // Build conversation history for OpenAI
+          const conversationHistory = conversation.messages.map(msg => ({
+            author: msg.author,
+            content: msg.content,
+            isNpc: msg.isNpc,
+          }))
+
+          // Get AI response
+          const aiResponse = await this.openAIService.getChatResponse(
+            conversationHistory,
+            npc.name,
+            player.name
+          )
+
+          // Create and add NPC response message
+          const npcResponseMessage = new NpcMessage()
+          npcResponseMessage.author = npc.name
+          npcResponseMessage.content = aiResponse
+          npcResponseMessage.isNpc = true
+          npcResponseMessage.createdAt = new Date().getTime()
+          conversation.messages.push(npcResponseMessage)
+
+          console.log(`Prof. Laura responded to ${player.name}: ${aiResponse}`)
+
+          // Log NPC message received event
+          if (this.eventLogger && player.userId) {
+            await this.eventLogger.logEvent(
+              player.userId,
+              EventType.NPC_MESSAGE_RECEIVED,
+              {
+                npcId,
+                npcName: npc.name,
+                message: aiResponse,
+                messageLength: aiResponse.length,
+                timestamp: new Date()
+              },
+              client.sessionId
+            )
+          }
+
+          // Save NPC response to database
+          if (this.dbService && dbConversationId) {
+            try {
+              await this.dbService.addConversationMessage({
+                conversationId: dbConversationId,
+                author: npc.name,
+                content: aiResponse,
+                isNpc: true,
+              })
+            } catch (error) {
+              console.error('Failed to save NPC response to database:', error)
+            }
+          }
+
+        } catch (error) {
+          console.error(`Failed to get AI response for player ${player.name}:`, error)
+
+          // Send friendly fallback message
+          const fallbackMessage = new NpcMessage()
+          fallbackMessage.author = npc.name
+          fallbackMessage.content = "I apologize, I'm having a bit of trouble formulating my thoughts right now. Could you please try asking again?"
+          fallbackMessage.isNpc = true
+          fallbackMessage.createdAt = new Date().getTime()
+          conversation.messages.push(fallbackMessage)
+
+          console.log(`Prof. Laura sent fallback message to ${player.name}`)
+
+          // Save fallback message to database
+          if (this.dbService && dbConversationId) {
+            try {
+              await this.dbService.addConversationMessage({
+                conversationId: dbConversationId,
+                author: npc.name,
+                content: fallbackMessage.content,
+                isNpc: true,
+              })
+            } catch (error) {
+              console.error('Failed to save fallback message to database:', error)
+            }
+          }
+        }
+      }
+    })
+
+    // when a player ends a conversation with an NPC
+    this.onMessage(Message.END_NPC_CONVERSATION, async (client, message: { npcId: string }) => {
+      const { npcId } = message
+      const npc = this.state.npcs.get(npcId)
+      const player = this.state.players.get(client.sessionId)
+
+      if (!npc || !player) return
+
+      console.log(`Player ${player.name} ended conversation with NPC ${npc.name}`)
+
+      // Log conversation end event
+      if (this.eventLogger && player.userId) {
+        const result = await this.eventLogger.endInteraction(
+          client.sessionId,
+          'NPC',
+          npcId
+        )
+
+        if (result) {
+          // Update session metrics with interaction count and duration
+          await this.eventLogger.updateSessionMetrics(client.sessionId, {
+            npcInteractionCount: 1,
+            npcTotalDuration: Math.floor(result.duration / 1000) // Convert to seconds
+          })
+        }
+      }
+
+      // Note: We keep the conversation in memory (as per requirements - persist history)
+      // If you wanted to clear it, you would do: npc.conversations.delete(client.sessionId)
+    })
+  }
+
+  private spawnNPCs() {
+    // Spawn a guide NPC
+    const guide = new NPC()
+    guide.id = 'guide'
+    guide.name = 'Prof. Laura'
+    guide.x = 400
+    guide.y = 300
+    guide.texture = 'nancy'
+    guide.anim = 'nancy_idle_down'
+
+    this.state.npcs.set('guide', guide)
+    console.log('✅ Spawned NPC: Guide at (400, 350)')
   }
 
   async onAuth(client: Client, options: { password: string | null }) {
@@ -165,8 +502,82 @@ export class SkyOffice extends Room<OfficeState> {
     return true
   }
 
-  onJoin(client: Client, options: any) {
-    this.state.players.set(client.sessionId, new Player())
+  async onJoin(client: Client, options: any) {
+    const player = new Player()
+
+    // Require authentication with username and password
+    if (!this.dbService) {
+      throw new ServerError(503, 'Database service is not available')
+    }
+
+    if (!options.username || !options.password) {
+      throw new ServerError(400, 'Username and password are required')
+    }
+
+    try {
+      // Verify user credentials
+      const user = await this.dbService.verifyUserPassword(options.username, options.password)
+
+      if (!user) {
+        throw new ServerError(401, 'Invalid username or password')
+      }
+
+      // Update user's session
+      await this.dbService.updateUserSession(user.id, client.sessionId)
+      console.log(`✅ User ${user.username} authenticated and joined (${user.id})`)
+
+      // Log login event
+      if (this.eventLogger) {
+        await this.eventLogger.logEvent(
+          user.id,
+          EventType.USER_LOGIN,
+          {
+            avatar: options.avatarTexture || user.avatarTexture,
+            timestamp: new Date(),
+            username: user.username
+          },
+          client.sessionId
+        )
+
+        // Create session metrics
+        await this.eventLogger.createSessionMetrics(user.id, client.sessionId)
+      }
+
+      // Set player properties from database
+      player.userId = user.id
+      player.name = user.username
+
+      // Store join time on client for session duration calculation
+      (client as any).userData = {
+        ...((client as any).userData || {}),
+        joinedAt: Date.now(),
+        userId: user.id
+      }
+
+      // Apply avatar texture from options if provided, otherwise use saved one
+      if (options.avatarTexture) {
+        player.anim = options.avatarTexture + '_idle_down'
+      }
+
+      // Load last position from game progress
+      const progress = await this.dbService.getGameProgress(user.id)
+      if (progress && progress.lastX !== null && progress.lastY !== null) {
+        player.x = progress.lastX
+        player.y = progress.lastY
+        player.anim = progress.lastAnim || user.avatarTexture + '_idle_down'
+        console.log(`📍 Restored position for ${user.username}: (${progress.lastX}, ${progress.lastY})`)
+      }
+    } catch (error) {
+      // Re-throw ServerErrors (authentication failures)
+      if (error instanceof ServerError) {
+        throw error
+      }
+      // Log and throw other errors
+      console.error('Failed to authenticate user:', error)
+      throw new ServerError(500, 'Authentication failed. Please try again.')
+    }
+
+    this.state.players.set(client.sessionId, player)
     client.send(Message.SEND_ROOM_DATA, {
       id: this.roomId,
       name: this.name,
@@ -174,7 +585,56 @@ export class SkyOffice extends Room<OfficeState> {
     })
   }
 
-  onLeave(client: Client, consented: boolean) {
+  async onLeave(client: Client, consented: boolean) {
+    const player = this.state.players.get(client.sessionId)
+    const joinTime = (client as any).userData?.joinedAt || Date.now()
+
+    // Save player state to database before removing
+    if (player && player.userId) {
+      // Log logout event and update session metrics
+      if (this.eventLogger) {
+        const sessionDuration = Date.now() - joinTime
+
+        await this.eventLogger.logEvent(
+          player.userId,
+          EventType.USER_LOGOUT,
+          {
+            sessionDuration: Math.floor(sessionDuration / 1000), // Convert to seconds
+            finalPosition: { x: player.x, y: player.y }
+          },
+          client.sessionId
+        )
+
+        // Update session metrics with final data
+        await this.eventLogger.updateSessionMetrics(client.sessionId, {
+          logoutTime: new Date(),
+          totalDuration: Math.floor(sessionDuration / 1000)
+        })
+
+        // Save any pending movement patterns
+        await this.eventLogger.saveMovementPattern(player.userId, client.sessionId)
+      }
+
+      if (this.dbService) {
+        try {
+          // Save current position and update last active
+          await this.dbService.saveGameProgress({
+            userId: player.userId,
+            lastX: player.x,
+            lastY: player.y,
+            lastAnim: player.anim,
+          })
+
+          // Clear session ID
+          await this.dbService.clearUserSession(player.userId)
+
+          console.log(`💾 Saved progress for ${player.name} at (${player.x}, ${player.y})`)
+        } catch (error) {
+          console.error('Failed to save player progress on leave:', error)
+        }
+      }
+    }
+
     if (this.state.players.has(client.sessionId)) {
       this.state.players.delete(client.sessionId)
     }

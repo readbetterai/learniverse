@@ -1,11 +1,11 @@
-import { Schema, ArraySchema, SetSchema, MapSchema, type } from '@colyseus/schema'
+import { Schema, SetSchema, MapSchema, type } from '@colyseus/schema'
 import {
   IPlayer,
   IOfficeState,
   IComputer,
   IWhiteboard,
-  IChatMessage,
 } from '../../../types/IOfficeState'
+import { NPC } from './NpcState'
 
 export class Player extends Schema implements IPlayer {
   @type('string') name = ''
@@ -14,6 +14,13 @@ export class Player extends Schema implements IPlayer {
   @type('string') anim = 'adam_idle_down'
   @type('boolean') readyToConnect = false
   @type('boolean') videoConnected = false
+  @type('string') userId = '' // Database user ID for persistence
+
+  // Event tracking properties (not synchronized to clients)
+  lastSampleTime?: number
+  currentZone?: string
+  isIdle?: boolean
+  idleStartTime?: number
 }
 
 export class Computer extends Schema implements IComputer {
@@ -23,12 +30,6 @@ export class Computer extends Schema implements IComputer {
 export class Whiteboard extends Schema implements IWhiteboard {
   @type('string') roomId = getRoomId()
   @type({ set: 'string' }) connectedUser = new SetSchema<string>()
-}
-
-export class ChatMessage extends Schema implements IChatMessage {
-  @type('string') author = ''
-  @type('number') createdAt = new Date().getTime()
-  @type('string') content = ''
 }
 
 export class OfficeState extends Schema implements IOfficeState {
@@ -41,8 +42,8 @@ export class OfficeState extends Schema implements IOfficeState {
   @type({ map: Whiteboard })
   whiteboards = new MapSchema<Whiteboard>()
 
-  @type([ChatMessage])
-  chatMessages = new ArraySchema<ChatMessage>()
+  @type({ map: NPC })
+  npcs = new MapSchema<NPC>()
 }
 
 export const whiteboardRoomIds = new Set<string>()

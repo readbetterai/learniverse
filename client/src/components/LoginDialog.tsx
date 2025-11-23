@@ -22,6 +22,7 @@ import { getAvatarString, getColorByString } from '../util'
 
 import phaserGame from '../PhaserGame'
 import Game from '../scenes/Game'
+import OpenReplayTracker from '../services/OpenReplayTracker'
 
 const Wrapper = styled.form`
   position: fixed;
@@ -141,27 +142,63 @@ for (let i = avatars.length - 1; i > 0; i--) {
 }
 
 export default function LoginDialog() {
-  const [name, setName] = useState<string>('')
+  const [username, setUsername] = useState<string>('')
+  const [password, setPassword] = useState<string>('')
   const [avatarIndex, setAvatarIndex] = useState<number>(0)
-  const [nameFieldEmpty, setNameFieldEmpty] = useState<boolean>(false)
+  const [error, setError] = useState<string>('')
+  const [isLoading, setIsLoading] = useState<boolean>(false)
   const dispatch = useAppDispatch()
   const videoConnected = useAppSelector((state) => state.user.videoConnected)
   const roomJoined = useAppSelector((state) => state.room.roomJoined)
-  const roomName = useAppSelector((state) => state.room.roomName)
-  const roomDescription = useAppSelector((state) => state.room.roomDescription)
+  const roomName = useAppSelector((state) => state.room.roomName) || 'Learniverse'
+  const roomDescription = useAppSelector((state) => state.room.roomDescription) || 'Public Lobby'
   const game = phaserGame.scene.keys.game as Game
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (name === '') {
-      setNameFieldEmpty(true)
-    } else if (roomJoined) {
-      console.log('Join! Name:', name, 'Avatar:', avatars[avatarIndex].name)
+    setError('')
+
+    // Validation
+    if (!username) {
+      setError('Username is required')
+      return
+    }
+    if (!password) {
+      setError('Password is required')
+      return
+    }
+
+    setIsLoading(true)
+
+    try {
+      console.log('Logging in with username:', username)
+
+      // Join room with credentials
+      await game.network.joinOrCreatePublic({
+        username,
+        password,
+        avatarTexture: avatars[avatarIndex].name,
+      })
+
+      // If we get here, authentication succeeded
       game.registerKeys()
-      game.myPlayer.setPlayerName(name)
+      game.myPlayer.setPlayerName(username)
       game.myPlayer.setPlayerTexture(avatars[avatarIndex].name)
       game.network.readyToConnect()
       dispatch(setLoggedIn(true))
+
+      // Track user login in OpenReplay
+      if (OpenReplayTracker.isInitialized()) {
+        OpenReplayTracker.setUserInfo(username, username)
+        OpenReplayTracker.setMetadata('avatar', avatars[avatarIndex].name)
+        OpenReplayTracker.trackEvent('user_login', { username, avatar: avatars[avatarIndex].name })
+      }
+    } catch (err: any) {
+      console.error('Login error:', err)
+      // Extract error message from Colyseus error
+      const errorMessage = err.message || err.toString() || 'Login failed. Please check your credentials.'
+      setError(errorMessage)
+      setIsLoading(false)
     }
   }
 
@@ -200,20 +237,37 @@ export default function LoginDialog() {
           <TextField
             autoFocus
             fullWidth
-            label="Name"
+            label="Username"
             variant="outlined"
             color="secondary"
-            error={nameFieldEmpty}
-            helperText={nameFieldEmpty && 'Name is required'}
-            onInput={(e) => {
-              setName((e.target as HTMLInputElement).value)
-            }}
+            value={username}
+            disabled={isLoading}
+            onChange={(e) => setUsername(e.target.value)}
+            style={{ marginBottom: '16px' }}
           />
-          {!videoConnected && (
+          <TextField
+            fullWidth
+            type="password"
+            label="Password"
+            variant="outlined"
+            color="secondary"
+            value={password}
+            disabled={isLoading}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          {error && (
             <Warning>
-              <Alert variant="outlined" severity="warning">
-                <AlertTitle>Warning</AlertTitle>
-                No webcam/mic connected - <strong>connect one for best experience!</strong>
+              <Alert variant="outlined" severity="error">
+                <AlertTitle>Error</AlertTitle>
+                {error}
+              </Alert>
+            </Warning>
+          )}
+          {!error && !videoConnected && (
+            <Warning>
+              <Alert variant="outlined" severity="info">
+                <AlertTitle>Tip</AlertTitle>
+                Connect webcam for video chat!
               </Alert>
               <Button
                 variant="outlined"
@@ -226,17 +280,22 @@ export default function LoginDialog() {
               </Button>
             </Warning>
           )}
-
-          {videoConnected && (
+          {!error && videoConnected && (
             <Warning>
-              <Alert variant="outlined">Webcam connected!</Alert>
+              <Alert variant="outlined" severity="success">Webcam connected!</Alert>
             </Warning>
           )}
         </Right>
       </Content>
       <Bottom>
-        <Button variant="contained" color="secondary" size="large" type="submit">
-          Join
+        <Button
+          variant="contained"
+          color="secondary"
+          size="large"
+          type="submit"
+          disabled={isLoading}
+        >
+          {isLoading ? 'Logging in...' : 'Login'}
         </Button>
       </Bottom>
     </Wrapper>

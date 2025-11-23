@@ -7,10 +7,9 @@ import Network from '../services/Network'
 import Chair from '../items/Chair'
 import Computer from '../items/Computer'
 import Whiteboard from '../items/Whiteboard'
+import Npc from '../items/Npc'
 
 import { phaserEvents, Event } from '../events/EventCenter'
-import store from '../stores'
-import { pushPlayerJoinedMessage } from '../stores/ChatStore'
 import { ItemType } from '../../../types/Items'
 import { NavKeys } from '../../../types/KeyboardState'
 import { JoystickMovement } from '../components/Joystick'
@@ -35,7 +34,6 @@ export default class MyPlayer extends Player {
   setPlayerName(name: string) {
     this.playerName.setText(name)
     phaserEvents.emit(Event.MY_PLAYER_NAME_CHANGE, name)
-    store.dispatch(pushPlayerJoinedMessage(name))
   }
 
   setPlayerTexture(texture: string) {
@@ -61,6 +59,10 @@ export default class MyPlayer extends Player {
 
     if (Phaser.Input.Keyboard.JustDown(keyR)) {
       switch (item?.itemType) {
+        case ItemType.NPC:
+          const npc = item as Npc
+          npc.openDialog(network)
+          break
         case ItemType.COMPUTER:
           const computer = item as Computer
           computer.openDialog(this.playerId, network)

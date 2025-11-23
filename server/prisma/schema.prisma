@@ -1,0 +1,164 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User/Player Account
+model User {
+  id            String   @id @default(uuid())
+  sessionId     String?  @unique // Current Colyseus session (nullable when offline)
+  username      String   @unique
+  password      String   // bcrypt hashed password
+  email         String?  @unique
+  avatarTexture String   @default("adam")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  conversations NpcConversation[]
+  gameProgress  GameProgress?
+  settings      UserSettings?
+  events        UserEvent[]
+  interactions  InteractionSession[]
+  movements     MovementPattern[]
+  sessions      SessionMetrics[]
+
+  @@index([username])
+  @@index([sessionId])
+}
+
+// NPC Conversation Sessions
+model NpcConversation {
+  id        String   @id @default(uuid())
+  userId    String
+  npcId     String   // e.g., 'guide' for Prof. Laura
+  startedAt DateTime @default(now())
+  endedAt   DateTime?
+
+  user     User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages ConversationMessage[]
+
+  @@index([userId, npcId])
+  @@index([startedAt])
+}
+
+// Individual messages in NPC conversations
+model ConversationMessage {
+  id             String   @id @default(uuid())
+  conversationId String
+  author         String   // 'player' or npcId
+  content        String   @db.Text
+  isNpc          Boolean  @default(false)
+  timestamp      DateTime @default(now())
+
+  conversation NpcConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, timestamp])
+}
+
+// User game progress and stats
+model GameProgress {
+  id                    String   @id @default(uuid())
+  userId                String   @unique
+  lastX                 Float?   // Last known X position
+  lastY                 Float?   // Last known Y position
+  lastAnim              String?  // Last known animation state
+  totalPlayTime         Int      @default(0) // seconds
+  npcInteractionCount   Int      @default(0)
+  lastActiveAt          DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// User preferences and settings
+model UserSettings {
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  videoEnabled      Boolean  @default(true)
+  audioEnabled      Boolean  @default(true)
+  chatNotifications Boolean  @default(true)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Event Logging Models
+
+// General event logging
+model UserEvent {
+  id            String   @id @default(uuid())
+  userId        String
+  sessionId     String?  // Colyseus session ID
+  eventType     String   // LOGIN, LOGOUT, NPC_START, etc.
+  eventCategory String   // AUTH, NPC, MOVEMENT, SOCIAL
+  metadata      Json?    // Flexible JSON for event-specific data
+  timestamp     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, timestamp])
+  @@index([eventType, timestamp])
+  @@index([sessionId])
+}
+
+// Track interaction sessions (NPC conversations, player proximity)
+model InteractionSession {
+  id         String   @id @default(uuid())
+  userId     String
+  sessionId  String   // Colyseus session ID
+  targetType String   // NPC, PLAYER
+  targetId   String   // npc id or player id
+  startTime  DateTime @default(now())
+  endTime    DateTime?
+  duration   Int?     // milliseconds
+  metadata   Json?    // additional context data
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, startTime])
+  @@index([targetType])
+  @@index([sessionId])
+}
+
+// Track movement patterns
+model MovementPattern {
+  id            String   @id @default(uuid())
+  userId        String
+  sessionId     String   // Colyseus session ID
+  positions     Json     // Array of {x, y, timestamp} samples
+  zones         Json     // Array of {zone, enterTime, exitTime}
+  totalDistance Float    // Calculated distance traveled
+  recordedAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, recordedAt])
+  @@index([sessionId])
+}
+
+// Aggregate metrics per session
+model SessionMetrics {
+  id                   String   @id @default(uuid())
+  userId               String
+  sessionId            String   @unique // Colyseus session ID
+  loginTime            DateTime
+  logoutTime           DateTime?
+  totalDuration        Int?     // seconds
+  npcInteractionCount  Int      @default(0)
+  npcTotalDuration     Int      @default(0) // seconds
+  npcMessageCount      Int      @default(0)
+  proximityEventCount  Int      @default(0) // player encounters
+  distanceTraveled     Float    @default(0)
+  zonesVisited         Json?    // Array of zone names
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, loginTime])
+  @@index([sessionId])
+}

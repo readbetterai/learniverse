@@ -1,4 +1,5 @@
-import { Schema, ArraySchema, SetSchema, MapSchema } from '@colyseus/schema'
+import { Schema, SetSchema, MapSchema } from '@colyseus/schema'
+import { INPC } from './INpc'
 
 export interface IPlayer extends Schema {
   name: string
@@ -7,6 +8,7 @@ export interface IPlayer extends Schema {
   anim: string
   readyToConnect: boolean
   videoConnected: boolean
+  userId: string
 }
 
 export interface IComputer extends Schema {
@@ -18,15 +20,9 @@ export interface IWhiteboard extends Schema {
   connectedUser: SetSchema<string>
 }
 
-export interface IChatMessage extends Schema {
-  author: string
-  createdAt: number
-  content: string
-}
-
 export interface IOfficeState extends Schema {
   players: MapSchema<IPlayer>
   computers: MapSchema<IComputer>
   whiteboards: MapSchema<IWhiteboard>
-  chatMessages: ArraySchema<IChatMessage>
+  npcs: MapSchema<INPC>
 }

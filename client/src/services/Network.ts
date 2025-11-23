@@ -1,5 +1,6 @@
 import { Client, Room } from 'colyseus.js'
 import { IComputer, IOfficeState, IPlayer, IWhiteboard } from '../../../types/IOfficeState'
+import { INPC } from '../../../types/INpc'
 import { Message } from '../../../types/Messages'
 import { IRoomData, RoomType } from '../../../types/Rooms'
 import { ItemType } from '../../../types/Items'
@@ -14,11 +15,7 @@ import {
   addAvailableRooms,
   removeAvailableRooms,
 } from '../stores/RoomStore'
-import {
-  pushChatMessage,
-  pushPlayerJoinedMessage,
-  pushPlayerLeftMessage,
-} from '../stores/ChatStore'
+import { pushNpcMessage } from '../stores/ChatStore'
 import { setWhiteboardUrls } from '../stores/WhiteboardStore'
 
 export default class Network {
@@ -66,25 +63,26 @@ export default class Network {
   }
 
   // method to join the public lobby
-  async joinOrCreatePublic() {
-    this.room = await this.client.joinOrCreate(RoomType.PUBLIC)
+  async joinOrCreatePublic(credentials?: { username: string; password: string; avatarTexture?: string }) {
+    this.room = await this.client.joinOrCreate(RoomType.PUBLIC, credentials || {})
     this.initialize()
   }
 
   // method to join a custom room
-  async joinCustomById(roomId: string, password: string | null) {
-    this.room = await this.client.joinById(roomId, { password })
+  async joinCustomById(roomId: string, password: string | null, credentials?: { username: string; password: string; avatarTexture?: string }) {
+    this.room = await this.client.joinById(roomId, { password, ...credentials })
     this.initialize()
   }
 
   // method to create a custom room
-  async createCustom(roomData: IRoomData) {
+  async createCustom(roomData: IRoomData, credentials?: { username: string; password: string; avatarTexture?: string }) {
     const { name, description, password, autoDispose } = roomData
     this.room = await this.client.create(RoomType.CUSTOM, {
       name,
       description,
       password,
       autoDispose,
+      ...credentials,
     })
     this.initialize()
   }
@@ -112,7 +110,6 @@ export default class Network {
           if (field === 'name' && value !== '') {
             phaserEvents.emit(Event.PLAYER_JOINED, player, key)
             store.dispatch(setPlayerNameMap({ id: key, name: value }))
-            store.dispatch(pushPlayerJoinedMessage(value))
           }
         })
       }
@@ -123,7 +120,6 @@ export default class Network {
       phaserEvents.emit(Event.PLAYER_LEFT, key)
       this.webRTC?.deleteVideoStream(key)
       this.webRTC?.deleteOnCalledVideoStream(key)
-      store.dispatch(pushPlayerLeftMessage(player.name))
       store.dispatch(removePlayerNameMap(key))
     }
 
@@ -155,19 +151,38 @@ export default class Network {
       }
     }
 
-    // new instance added to the chatMessages ArraySchema
-    this.room.state.chatMessages.onAdd = (item, index) => {
-      store.dispatch(pushChatMessage(item))
+    // new instance added to the npcs MapSchema
+    this.room.state.npcs.onAdd = (npc: INPC, key: string) => {
+      phaserEvents.emit(Event.NPC_JOINED, npc, key)
+
+      // track changes on every child object inside the npcs MapSchema
+      npc.onChange = (changes) => {
+        changes.forEach((change) => {
+          const { field, value } = change
+          phaserEvents.emit(Event.NPC_UPDATED, field, value, key)
+        })
+      }
+
+      // track conversation changes for this NPC
+      npc.conversations.onAdd = (conversation, playerId) => {
+        // Only update if it's our conversation
+        if (playerId === this.room?.sessionId) {
+          conversation.messages.onAdd = (message, index) => {
+            const npcChatMessage = {
+              author: message.author,
+              createdAt: message.createdAt,
+              content: message.content,
+              isNpc: message.isNpc,
+            }
+            store.dispatch(pushNpcMessage(npcChatMessage))
+          }
+        }
+      }
     }
 
     // when the server sends room data
     this.room.onMessage(Message.SEND_ROOM_DATA, (content) => {
       store.dispatch(setJoinedRoomData(content))
-    })
-
-    // when a user sends a message
-    this.room.onMessage(Message.ADD_CHAT_MESSAGE, ({ clientId, content }) => {
-      phaserEvents.emit(Event.UPDATE_DIALOG_BUBBLE, clientId, content)
     })
 
     // when a peer disconnects with myPeer
@@ -180,11 +195,6 @@ export default class Network {
       const computerState = store.getState().computer
       computerState.shareScreenManager?.onUserLeft(clientId)
     })
-  }
-
-  // method to register event listener and call back function when a item user added
-  onChatMessageAdded(callback: (playerId: string, content: string) => void, context?: any) {
-    phaserEvents.on(Event.UPDATE_DIALOG_BUBBLE, callback, context)
   }
 
   // method to register event listener and call back function when a item user added
@@ -279,7 +289,32 @@ export default class Network {
     this.room?.send(Message.STOP_SCREEN_SHARE, { computerId: id })
   }
 
-  addChatMessage(content: string) {
-    this.room?.send(Message.ADD_CHAT_MESSAGE, { content: content })
+  // method to interact with NPC
+  interactWithNPC(npcId: string) {
+    this.room?.send(Message.INTERACT_WITH_NPC, { npcId })
+  }
+
+  // method to start NPC conversation
+  startNpcConversation(npcId: string) {
+    this.room?.send(Message.START_NPC_CONVERSATION, { npcId })
+  }
+
+  // method to end NPC conversation
+  endNpcConversation(npcId: string) {
+    this.room?.send(Message.END_NPC_CONVERSATION, { npcId })
+  }
+
+  // method to send message to NPC
+  sendNpcMessage(npcId: string, content: string) {
+    this.room?.send(Message.SEND_NPC_MESSAGE, { npcId, content })
+  }
+
+  // method to get existing NPCs from room state
+  getExistingNPCs() {
+    const npcs: Array<{ npc: INPC; key: string }> = []
+    this.room?.state.npcs.forEach((npc, key) => {
+      npcs.push({ npc, key })
+    })
+    return npcs
   }
 }
