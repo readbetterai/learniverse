@@ -12,6 +12,7 @@ Learniverse (fork of SkyOffice) is an immersive virtual office built with:
 - **TypeScript** - Both client and server
 - **PostgreSQL + Prisma** - Database for user accounts and persistent data
 - **OpenAI API** - Powers NPC (Prof. Laura) conversation system
+- **OpenReplay** - Session replay and analytics for user behavior tracking
 
 ## Repository Structure
 
@@ -37,6 +38,8 @@ The project has a **monorepo structure** with three main packages:
 - React components: `client/src/components/` (NpcChat.tsx, Chat.tsx, etc.)
 - Redux stores: `client/src/stores/` (ChatStore.ts, UserStore.ts, RoomStore.ts, etc.)
 - Network layer: `client/src/services/Network.ts` (Colyseus client connection)
+- Analytics: `client/src/services/OpenReplayTracker.ts` (Session replay tracking)
+- **Environment**: Requires `.env` file in `/client` with `VITE_OPENREPLAY_PROJECT_KEY` (optional)
 
 ### `/types` - Shared TypeScript Types
 - Shared between client and server
@@ -402,3 +405,77 @@ Several tools are available for monitoring logged events:
 - Zone transitions trigger immediate events for tracking exploration patterns
 - NPC conversations are linked to both the conversation records and event logs
 - Session metrics are updated incrementally throughout the session
+
+## Session Replay with OpenReplay
+
+The project uses OpenReplay for session recording and user behavior analysis.
+
+### Overview
+OpenReplay provides:
+- **Session replay** - Watch how users interact with the application
+- **Redux state tracking** - See all Redux actions and state changes
+- **Console logs** - Capture JavaScript console output
+- **Network monitoring** - Track API calls and WebSocket activity
+- **Error tracking** - Link errors to session replays
+- **Performance metrics** - Monitor page load and performance
+
+### Setup
+See detailed setup instructions in `/client/OPENREPLAY_SETUP.md`
+
+**Quick Start:**
+1. Sign up for free account at https://openreplay.com/pricing/
+2. Get project key from dashboard
+3. Add to `/client/.env`:
+   ```
+   VITE_OPENREPLAY_PROJECT_KEY=your_project_key_here
+   ```
+4. Start client: `cd client && yarn dev`
+
+### Architecture
+- **Tracker Service**: `client/src/services/OpenReplayTracker.ts` - Singleton wrapper for OpenReplay SDK
+- **Redux Integration**: Middleware in `client/src/stores/index.ts` tracks all actions
+- **User Tracking**: Automatically links sessions to logged-in users in `LoginDialog.tsx`
+- **Auto-initialization**: Tracker starts automatically in `client/src/index.tsx` when project key is present
+
+### Key Features
+- **Automatic**: Recording starts when application loads (if project key configured)
+- **User identification**: Sessions linked to username after login
+- **Custom events**: Login events automatically tracked
+- **Privacy**: Email addresses and passwords automatically obscured
+- **Optional canvas recording**: Can enable Phaser3 game canvas recording (performance impact)
+
+### Session Limits
+- **Maximum duration**: 2 hours per session (automatically splits longer sessions)
+- **Inactivity timeout**: 2 minutes
+- **Free tier**: 1,000 sessions/month, 30-day retention
+
+### Viewing Sessions
+1. Log into https://app.openreplay.com/
+2. Navigate to **Sessions**
+3. Click any session to watch replay
+4. View Redux actions, console logs, and network activity in DevTools panel
+
+### Canvas Recording (Optional)
+Canvas recording is **disabled by default** due to performance impact. To enable:
+
+1. Edit `client/src/services/OpenReplayTracker.ts`
+2. Uncomment the canvas recording options:
+   ```typescript
+   recordCanvas: true,
+   canvasFPS: 4,
+   canvasQuality: 'low',
+   ```
+3. Restart dev server
+
+**Note**: Canvas records at ~4fps (not smooth) and may impact game performance.
+
+### Pricing
+- **Free**: 1,000 sessions/month (no credit card required)
+- **Pay-as-you-go**: $3.95/month per 1,000 sessions
+- **Self-hosted**: FREE (requires infrastructure setup)
+
+### Complementary Analytics
+OpenReplay complements the server-side EventLoggingService:
+- **EventLoggingService**: Tracks server-side game events (movement, NPC interactions, zones)
+- **OpenReplay**: Records client-side UI interactions (login, menus, chat, errors)
+- Together they provide complete visibility into user behavior
