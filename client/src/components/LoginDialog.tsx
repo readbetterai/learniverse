@@ -22,7 +22,6 @@ import { getAvatarString, getColorByString } from '../util'
 
 import phaserGame from '../PhaserGame'
 import Game from '../scenes/Game'
-import OpenReplayTracker from '../services/OpenReplayTracker'
 
 const Wrapper = styled.form`
   position: fixed;
@@ -186,13 +185,6 @@ export default function LoginDialog() {
       game.myPlayer.setPlayerTexture(avatars[avatarIndex].name)
       game.network.readyToConnect()
       dispatch(setLoggedIn(true))
-
-      // Track user login in OpenReplay
-      if (OpenReplayTracker.isInitialized()) {
-        OpenReplayTracker.setUserInfo(username, username)
-        OpenReplayTracker.setMetadata('avatar', avatars[avatarIndex].name)
-        OpenReplayTracker.trackEvent('user_login', { username, avatar: avatars[avatarIndex].name })
-      }
     } catch (err: any) {
       console.error('Login error:', err)
       // Extract error message from Colyseus error

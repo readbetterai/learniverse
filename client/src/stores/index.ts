@@ -5,7 +5,6 @@ import computerReducer from './ComputerStore'
 import whiteboardReducer from './WhiteboardStore'
 import chatReducer from './ChatStore'
 import roomReducer from './RoomStore'
-import OpenReplayTracker from '../services/OpenReplayTracker'
 
 enableMapSet()
 
@@ -22,7 +21,7 @@ const store = configureStore({
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
       serializableCheck: false,
-    }).concat(OpenReplayTracker.getReduxPlugin() as any),
+    }),
 })
 
 // Infer the `RootState` and `AppDispatch` types from the store itself
