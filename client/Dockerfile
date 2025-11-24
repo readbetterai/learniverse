@@ -3,13 +3,19 @@ FROM node:18-alpine AS build
 
 WORKDIR /app
 
-# Copy package files and dependencies
-COPY package*.json ./
+# Install types package dependencies first
+COPY types/package*.json ./types/
+RUN cd types && npm install
+
+# Install client package dependencies
+COPY client/package*.json ./client/
+RUN cd client && npm install
+
+# Copy source code
 COPY types/ ./types/
 COPY client/ ./client/
 
-# Install dependencies and build
-RUN npm install
+# Build the client
 RUN cd client && npm run build
 
 # Serve stage with Caddy (optimized for static files)
