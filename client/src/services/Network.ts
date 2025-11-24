@@ -32,6 +32,11 @@ export default class Network {
       process.env.NODE_ENV === 'production'
         ? import.meta.env.VITE_SERVER_URL
         : `${protocol}//${window.location.hostname}:2567`
+
+    console.log('[Network] Connecting to server:', endpoint)
+    console.log('[Network] VITE_SERVER_URL:', import.meta.env.VITE_SERVER_URL)
+    console.log('[Network] NODE_ENV:', process.env.NODE_ENV)
+
     this.client = new Client(endpoint)
     this.joinLobbyRoom().then(() => {
       store.dispatch(setLobbyJoined(true))
