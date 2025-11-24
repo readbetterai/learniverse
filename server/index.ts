@@ -14,20 +14,17 @@ const port = Number(process.env.PORT || 2567)
 const hostname = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost'
 const app = express()
 
-// Configure CORS to allow client domain
-const corsOptions = {
-  origin: process.env.CLIENT_URL || '*',
-}
-app.use(cors(corsOptions))
+// Trust Railway proxy
+app.set('trust proxy', 1)
+
+// Configure CORS - allow all origins for now
+app.use(cors())
 app.use(express.json())
 // app.use(express.static('dist'))
 
 const server = http.createServer(app)
 const gameServer = new Server({
   server,
-  cors: {
-    origin: process.env.CLIENT_URL || '*',
-  },
 })
 
 // register room handlers
