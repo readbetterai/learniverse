@@ -17,7 +17,6 @@ const app = express()
 // Configure CORS to allow client domain
 const corsOptions = {
   origin: process.env.CLIENT_URL || '*',
-  credentials: true,
 }
 app.use(cors(corsOptions))
 app.use(express.json())
@@ -26,6 +25,9 @@ app.use(express.json())
 const server = http.createServer(app)
 const gameServer = new Server({
   server,
+  cors: {
+    origin: process.env.CLIENT_URL || '*',
+  },
 })
 
 // register room handlers
