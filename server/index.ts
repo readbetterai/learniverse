@@ -14,7 +14,12 @@ const port = Number(process.env.PORT || 2567)
 const hostname = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost'
 const app = express()
 
-app.use(cors())
+// Configure CORS to allow client domain
+const corsOptions = {
+  origin: process.env.CLIENT_URL || '*',
+  credentials: true,
+}
+app.use(cors(corsOptions))
 app.use(express.json())
 // app.use(express.static('dist'))
 
