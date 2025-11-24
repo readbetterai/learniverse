@@ -1,6 +1,14 @@
 # Build stage
 FROM node:18-alpine AS build
 
+# Accept build arguments from Railway
+ARG VITE_SERVER_URL
+ARG VITE_OPENREPLAY_PROJECT_KEY
+
+# Set as environment variables for the build
+ENV VITE_SERVER_URL=$VITE_SERVER_URL
+ENV VITE_OPENREPLAY_PROJECT_KEY=$VITE_OPENREPLAY_PROJECT_KEY
+
 WORKDIR /app
 
 # Install types package dependencies first
@@ -15,7 +23,7 @@ RUN cd client && npm install --legacy-peer-deps
 COPY types/ ./types/
 COPY client/ ./client/
 
-# Build the client
+# Build the client (environment variables will be baked into the build)
 RUN cd client && npm run build
 
 # Serve stage with Caddy (optimized for static files)
