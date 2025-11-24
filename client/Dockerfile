@@ -5,11 +5,11 @@ WORKDIR /app
 
 # Install types package dependencies first
 COPY types/package*.json ./types/
-RUN cd types && npm install
+RUN cd types && npm install --legacy-peer-deps
 
 # Install client package dependencies
 COPY client/package*.json ./client/
-RUN cd client && npm install
+RUN cd client && npm install --legacy-peer-deps
 
 # Copy source code
 COPY types/ ./types/
