@@ -27,6 +27,9 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
+// register colyseus monitor AFTER registering your room handlers
+app.use('/colyseus', monitor())
+
 const server = http.createServer(app)
 const gameServer = new Server({
   server,
@@ -50,16 +53,11 @@ gameServer.define(RoomType.CUSTOM, SkyOffice).enableRealtimeListing()
  */
 // app.use("/", socialRoutes);
 
-// register colyseus monitor AFTER registering your room handlers
-app.use('/colyseus', monitor())
-
 // Bind to 0.0.0.0 in production to accept external connections
 server.listen(port, hostname, () => {
-  console.log(`Listening on ${hostname}:${port}`)
+  console.log(`✅ Server listening on ${hostname}:${port}`)
+  console.log(`🎮 Colyseus monitor available at http://${hostname}:${port}/colyseus`)
 })
-
-// Attach Colyseus to the existing HTTP server
-gameServer.attach({ server })
 
 // Error handling
 process.on('unhandledRejection', (reason, promise) => {
