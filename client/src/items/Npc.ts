@@ -23,9 +23,10 @@ export default class Npc extends Item {
     this.clearDialogBox()
 
     // Get existing conversation from network state
-    const npcs = network.room?.state.npcs
+    const room = network.getRoom()
+    const npcs = room?.state.npcs
     const npc = npcs?.get(this.npcId)
-    const conversation = npc?.conversations.get(network.room?.sessionId || '')
+    const conversation = npc?.conversations.get(room?.sessionId || '')
 
     // Convert messages to plain objects
     const messages = conversation?.messages.map(msg => ({

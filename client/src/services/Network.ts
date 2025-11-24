@@ -43,6 +43,13 @@ export default class Network {
   }
 
   /**
+   * Get the current room instance
+   */
+  getRoom(): Room<IOfficeState> | undefined {
+    return this.room
+  }
+
+  /**
    * method to join Colyseus' built-in LobbyRoom, which automatically notifies
    * connected clients whenever rooms with "realtime listing" have updates
    */

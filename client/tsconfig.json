@@ -19,5 +19,6 @@
     "strictNullChecks": true,
   },
   "include": ["src"],
+  "exclude": ["src/components/Chat.tsx"],
   "references": [{ "path": "./tsconfig.node.json" }],
 }

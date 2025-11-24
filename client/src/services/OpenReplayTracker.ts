@@ -42,6 +42,8 @@ class OpenReplayTracker {
           capturePayload: true, // Capture request/response payloads
           failuresOnly: false,
           sessionTokenHeader: false,
+          ignoreHeaders: [],
+          captureInIframes: true,
         },
 
         // Console logs
@@ -147,7 +149,7 @@ class OpenReplayTracker {
     }
 
     try {
-      this.tracker.setMetadata(key, value)
+      this.tracker.setMetadata(key, String(value))
     } catch (error) {
       console.error('Failed to set metadata:', error)
     }

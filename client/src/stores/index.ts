@@ -22,7 +22,7 @@ const store = configureStore({
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
       serializableCheck: false,
-    }).concat(OpenReplayTracker.getReduxPlugin()),
+    }).concat(OpenReplayTracker.getReduxPlugin() as any),
 })
 
 // Infer the `RootState` and `AppDispatch` types from the store itself

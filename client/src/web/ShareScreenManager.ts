@@ -65,13 +65,14 @@ export default class ShareScreenManager {
         store.dispatch(setMyStream(stream))
 
         // Call all existing users.
-        const game = phaserGame.scene.keys.game as Game
-        const computerItem = game.computerMap.get(store.getState().computer.computerId!)
-        if (computerItem) {
-          for (const userId of computerItem.currentUsers) {
-            this.onUserJoined(userId)
-          }
-        }
+        // Note: Computer items have been removed from the game
+        // const game = phaserGame.scene.keys.game as Game
+        // const computerItem = game.computerMap.get(store.getState().computer.computerId!)
+        // if (computerItem) {
+        //   for (const userId of computerItem.currentUsers) {
+        //     this.onUserJoined(userId)
+        //   }
+        // }
       })
   }
 
