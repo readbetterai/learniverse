@@ -22,6 +22,11 @@ app.use(cors())
 app.use(express.json())
 // app.use(express.static('dist'))
 
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() })
+})
+
 const server = http.createServer(app)
 const gameServer = new Server({
   server,
@@ -55,3 +60,13 @@ server.listen(port, hostname, () => {
 
 // Attach Colyseus to the existing HTTP server
 gameServer.attach({ server })
+
+// Error handling
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason)
+})
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error)
+  process.exit(1)
+})
