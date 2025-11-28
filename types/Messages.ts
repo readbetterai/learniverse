@@ -15,4 +15,6 @@ export enum Message {
   END_NPC_CONVERSATION,
   SEND_NPC_MESSAGE,
   RECEIVE_NPC_MESSAGE,
+  // Point system
+  POINTS_UPDATED,
 }

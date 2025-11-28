@@ -19,7 +19,9 @@ import {
 import { OpenAIService } from '../services/OpenAIService'
 import { DatabaseService } from '../services/DatabaseService'
 import { EventLoggingService } from '../services/EventLoggingService'
+import { PointService } from '../services/PointService'
 import { EventType } from '../../types/EventTypes'
+import { PointType } from '../../types/PointTypes'
 
 export class SkyOffice extends Room<OfficeState> {
   private dispatcher = new Dispatcher(this)
@@ -29,6 +31,7 @@ export class SkyOffice extends Room<OfficeState> {
   private openAIService?: OpenAIService
   private dbService?: DatabaseService
   private eventLogger?: EventLoggingService
+  private pointService?: PointService
 
   async onCreate(options: IRoomData) {
     const { name, description, password, autoDispose } = options
@@ -72,6 +75,17 @@ export class SkyOffice extends Room<OfficeState> {
     } catch (error) {
       console.warn('⚠️  Event logging service not available:', error instanceof Error ? error.message : error)
       console.warn('   Events will not be tracked')
+    }
+
+    // Initialize Point service
+    try {
+      this.pointService = PointService.getInstance()
+      await this.pointService.connect()
+      console.log('✅ Point service initialized and connected')
+    } catch (error) {
+      console.warn('⚠️  Point service not available:', error instanceof Error ? error.message : error)
+      console.warn('   Points will not be awarded')
+      this.pointService = undefined
     }
 
     // HARD-CODED: Add 5 computers in a room
@@ -285,6 +299,24 @@ export class SkyOffice extends Room<OfficeState> {
           npcId,
           { npcName: npc.name, conversationId: (conversation as any).dbConversationId }
         )
+      }
+
+      // Award points for starting NPC conversation
+      if (this.pointService && player.userId) {
+        const pointResult = await this.pointService.awardPoints(
+          player.userId,
+          PointType.NPC_CONVERSATION_START,
+          { npcId, npcName: npc.name }
+        )
+
+        if (pointResult) {
+          player.points = pointResult.newTotal
+          client.send(Message.POINTS_UPDATED, {
+            pointsEarned: pointResult.pointsEarned,
+            newTotal: pointResult.newTotal,
+            reason: `Started conversation with ${npc.name}`,
+          })
+        }
       }
 
       // Send conversation history to client
@@ -567,6 +599,11 @@ export class SkyOffice extends Room<OfficeState> {
         player.anim = progress.lastAnim || user.avatarTexture + '_idle_down'
         console.log(`📍 Restored position for ${user.username}: (${progress.lastX}, ${progress.lastY})`)
       }
+
+      // Load existing points
+      if (this.pointService) {
+        player.points = await this.pointService.getUserPoints(user.id)
+      }
     } catch (error) {
       // Re-throw ServerErrors (authentication failures)
       if (error instanceof ServerError) {
@@ -588,6 +625,11 @@ export class SkyOffice extends Room<OfficeState> {
   async onLeave(client: Client, consented: boolean) {
     const player = this.state.players.get(client.sessionId)
     const joinTime = (client as any).userData?.joinedAt || Date.now()
+
+    // Clear user's cooldowns to prevent memory leaks
+    if (player && player.userId && this.pointService) {
+      this.pointService.clearUserCooldowns(player.userId)
+    }
 
     // Save player state to database before removing
     if (player && player.userId) {

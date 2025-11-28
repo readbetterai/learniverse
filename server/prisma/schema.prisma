@@ -21,14 +21,19 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  // Point system
+  totalPoints    Int @default(0)  // Spendable balance
+  lifetimePoints Int @default(0)  // All-time earned (for leaderboards, never decreases)
+
   // Relations
-  conversations NpcConversation[]
-  gameProgress  GameProgress?
-  settings      UserSettings?
-  events        UserEvent[]
-  interactions  InteractionSession[]
-  movements     MovementPattern[]
-  sessions      SessionMetrics[]
+  conversations     NpcConversation[]
+  gameProgress      GameProgress?
+  settings          UserSettings?
+  events            UserEvent[]
+  interactions      InteractionSession[]
+  movements         MovementPattern[]
+  sessions          SessionMetrics[]
+  pointTransactions PointTransaction[]
 
   @@index([username])
   @@index([sessionId])
@@ -161,4 +166,20 @@ model SessionMetrics {
 
   @@index([userId, loginTime])
   @@index([sessionId])
+}
+
+// Point System - Transaction History
+model PointTransaction {
+  id        String   @id @default(uuid())
+  userId    String
+  pointType String   // Valid values: 'NPC_CONVERSATION_START' (see types/PointTypes.ts)
+  points    Int      // Positive for earned, negative for spent
+  metadata  Json?    // Optional context: { npcId, npcName, etc. }
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Optimized index for cooldown queries that filter by userId + pointType and order by createdAt
+  @@index([userId, pointType, createdAt])
+  @@index([pointType])
 }

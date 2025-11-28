@@ -11,6 +11,8 @@ import VideoConnectionDialog from './components/VideoConnectionDialog'
 import NpcChat from './components/NpcChat'
 import HelperButtonGroup from './components/HelperButtonGroup'
 import MobileVirtualJoystick from './components/MobileVirtualJoystick'
+import PointsDisplay from './components/PointsDisplay'
+import PointsNotification from './components/PointsNotification'
 
 const Backdrop = styled.div`
   position: absolute;
@@ -55,6 +57,9 @@ function App() {
   return (
     <Backdrop>
       {ui}
+      {/* Points system UI - always rendered when logged in */}
+      <PointsDisplay />
+      <PointsNotification />
       {/* Render HelperButtonGroup if no dialogs are opened. */}
       {!computerDialogOpen && !whiteboardDialogOpen && <HelperButtonGroup />}
     </Backdrop>

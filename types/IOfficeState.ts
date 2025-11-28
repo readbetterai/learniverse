@@ -9,6 +9,7 @@ export interface IPlayer extends Schema {
   readyToConnect: boolean
   videoConnected: boolean
   userId: string
+  points: number
   // Event tracking properties (not synchronized to clients)
   lastSampleTime?: number
   currentZone?: string

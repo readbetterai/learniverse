@@ -15,6 +15,7 @@ export class Player extends Schema implements IPlayer {
   @type('boolean') readyToConnect = false
   @type('boolean') videoConnected = false
   @type('string') userId = '' // Database user ID for persistence
+  @type('number') points = 0 // Synced to client for real-time display
 
   // Event tracking properties (not synchronized to clients)
   lastSampleTime?: number

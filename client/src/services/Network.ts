@@ -17,6 +17,7 @@ import {
 } from '../stores/RoomStore'
 import { pushNpcMessage } from '../stores/ChatStore'
 import { setWhiteboardUrls } from '../stores/WhiteboardStore'
+import { addPointNotification, setTotalPoints } from '../stores/PointStore'
 
 export default class Network {
   private client: Client
@@ -110,9 +111,13 @@ export default class Network {
 
     // new instance added to the players MapSchema
     this.room.state.players.onAdd = (player: IPlayer, key: string) => {
-      if (key === this.mySessionId) return
+      if (key === this.mySessionId) {
+        // Set initial points for own player when they're added to state
+        store.dispatch(setTotalPoints(player.points || 0))
+        return
+      }
 
-      // track changes on every child object inside the players MapSchema
+      // track changes on every child object inside the players MapSchema (other players only)
       player.onChange = (changes) => {
         changes.forEach((change) => {
           const { field, value } = change
@@ -207,6 +212,24 @@ export default class Network {
       const computerState = store.getState().computer
       computerState.shareScreenManager?.onUserLeft(clientId)
     })
+
+    // when points are updated - single source of truth for point updates
+    this.room.onMessage(
+      Message.POINTS_UPDATED,
+      (data: { pointsEarned: number; newTotal: number; reason: string }) => {
+        // Validate incoming data before dispatching
+        if (
+          typeof data?.pointsEarned !== 'number' ||
+          typeof data?.newTotal !== 'number' ||
+          typeof data?.reason !== 'string'
+        ) {
+          console.error('Invalid points update data:', data)
+          return
+        }
+        store.dispatch(addPointNotification(data))
+      }
+    )
+
   }
 
   // method to register event listener and call back function when a item user added
