@@ -1,8 +1,5 @@
 import Phaser from 'phaser'
 import Network from '../services/Network'
-import { BackgroundMode } from '../../../types/BackgroundMode'
-import store from '../stores'
-import { setRoomJoined } from '../stores/RoomStore'
 
 export default class Bootstrap extends Phaser.Scene {
   private preloadComplete = false
@@ -19,12 +16,6 @@ export default class Bootstrap extends Phaser.Scene {
       'assets/background/cloud_day.json'
     )
     this.load.image('backdrop_day', 'assets/background/backdrop_day.png')
-    this.load.atlas(
-      'cloud_night',
-      'assets/background/cloud_night.png',
-      'assets/background/cloud_night.json'
-    )
-    this.load.image('backdrop_night', 'assets/background/backdrop_night.png')
     this.load.image('sun_moon', 'assets/background/sun_moon.png')
 
     this.load.tilemapTiledJSON('tilemap', 'assets/map/map.json')
@@ -53,16 +44,12 @@ export default class Bootstrap extends Phaser.Scene {
 
     this.load.on('complete', () => {
       this.preloadComplete = true
-      this.launchBackground(store.getState().user.backgroundMode)
+      this.scene.launch('background')
     })
   }
 
   init() {
     this.network = new Network()
-  }
-
-  private launchBackground(backgroundMode: BackgroundMode) {
-    this.scene.launch('background', { backgroundMode })
   }
 
   launchGame() {
@@ -73,10 +60,5 @@ export default class Bootstrap extends Phaser.Scene {
     })
 
     // Note: setRoomJoined(true) is now called after successful authentication in LoginDialog
-  }
-
-  changeBackgroundMode(backgroundMode: BackgroundMode) {
-    this.scene.stop('background')
-    this.launchBackground(backgroundMode)
   }
 }
