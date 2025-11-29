@@ -16,6 +16,8 @@ export class Player extends Schema implements IPlayer {
   @type('boolean') videoConnected = false
   @type('string') userId = '' // Database user ID for persistence
   @type('number') points = 0 // Synced to client for real-time display
+  // pointFlowType is server-side only (no @type decorator) - not synced to other clients for privacy
+  pointFlowType = 'SYSTEM' // 'SYSTEM' or 'NPC' - determines point awarding flow
 
   // Event tracking properties (not synchronized to clients)
   lastSampleTime?: number

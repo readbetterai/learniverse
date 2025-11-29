@@ -24,6 +24,7 @@ model User {
   // Point system
   totalPoints    Int @default(0)  // Spendable balance
   lifetimePoints Int @default(0)  // All-time earned (for leaderboards, never decreases)
+  pointFlowType  String @default("SYSTEM")  // "SYSTEM" or "NPC" - determines who awards points
 
   // Relations
   conversations     NpcConversation[]

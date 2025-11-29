@@ -10,6 +10,8 @@ export interface IPlayer extends Schema {
   videoConnected: boolean
   userId: string
   points: number
+  // pointFlowType is server-side only, not synced to clients
+  pointFlowType?: string
   // Event tracking properties (not synchronized to clients)
   lastSampleTime?: number
   currentZone?: string

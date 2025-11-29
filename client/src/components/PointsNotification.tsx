@@ -109,6 +109,13 @@ export default function PointsNotification() {
   // Don't render if nothing to show
   if (!displayedNotification && !showNotification) return null
 
+  // Determine title based on who awarded the points
+  const isNpcAwarded =
+    displayedNotification?.awardedBy && displayedNotification.awardedBy !== 'SYSTEM'
+  const title = isNpcAwarded
+    ? `${displayedNotification.awardedBy} awarded you!`
+    : 'Points Earned!'
+
   return (
     <Backdrop
       $isVisible={showNotification}
@@ -118,7 +125,7 @@ export default function PointsNotification() {
       aria-atomic="true"
     >
       <Container>
-        <Title>Points Earned!</Title>
+        <Title>{title}</Title>
         <PointsEarned>
           <StarIcon style={{ color: '#ffd700', fontSize: 36 }} aria-hidden="true" />
           <span aria-label={`Plus ${displayedNotification?.pointsEarned ?? 0} points`}>

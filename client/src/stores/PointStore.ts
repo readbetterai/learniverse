@@ -5,6 +5,7 @@ interface PointNotification {
   pointsEarned: number
   reason: string
   timestamp: number
+  awardedBy: string // 'SYSTEM' or NPC name
 }
 
 interface PointState {
@@ -37,6 +38,7 @@ export const pointSlice = createSlice({
         pointsEarned: number
         newTotal: number
         reason: string
+        awardedBy: string
       }>
     ) => {
       // Use counter to ensure unique IDs even within same millisecond
@@ -46,6 +48,7 @@ export const pointSlice = createSlice({
         pointsEarned: action.payload.pointsEarned,
         reason: action.payload.reason,
         timestamp: Date.now(),
+        awardedBy: action.payload.awardedBy,
       }
       state.totalPoints = action.payload.newTotal
       state.notifications.push(notification)

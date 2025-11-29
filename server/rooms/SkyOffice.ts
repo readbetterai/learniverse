@@ -21,7 +21,7 @@ import { DatabaseService } from '../services/DatabaseService'
 import { EventLoggingService } from '../services/EventLoggingService'
 import { PointService } from '../services/PointService'
 import { EventType } from '../../types/EventTypes'
-import { PointType } from '../../types/PointTypes'
+import { PointType, PointFlowType, getNpcAwardMessage } from '../../types/PointTypes'
 
 export class SkyOffice extends Room<OfficeState> {
   private dispatcher = new Dispatcher(this)
@@ -311,10 +311,41 @@ export class SkyOffice extends Room<OfficeState> {
 
         if (pointResult) {
           player.points = pointResult.newTotal
+
+          // Check if user has NPC flow type - NPC announces the point award
+          if (player.pointFlowType === PointFlowType.NPC) {
+            const awardMessage = new NpcMessage()
+            awardMessage.author = npc.name
+            awardMessage.content = getNpcAwardMessage(npcId, pointResult.pointsEarned)
+            awardMessage.isNpc = true
+            awardMessage.createdAt = new Date().getTime()
+            conversation.messages.push(awardMessage)
+
+            // Save NPC award message to database
+            const dbConversationId = (conversation as any).dbConversationId
+            if (this.dbService && dbConversationId) {
+              try {
+                await this.dbService.addConversationMessage({
+                  conversationId: dbConversationId,
+                  author: npc.name,
+                  content: awardMessage.content,
+                  isNpc: true,
+                })
+              } catch (error) {
+                console.error('Failed to save NPC award message to database:', error)
+              }
+            }
+          }
+
+          // Send notification with source info for client customization
+          // For NPC flow, use shorter reason since NPC chat already explains the award
           client.send(Message.POINTS_UPDATED, {
             pointsEarned: pointResult.pointsEarned,
             newTotal: pointResult.newTotal,
-            reason: `Started conversation with ${npc.name}`,
+            reason: player.pointFlowType === PointFlowType.NPC
+              ? 'Points awarded'
+              : `Started conversation with ${npc.name}`,
+            awardedBy: player.pointFlowType === PointFlowType.NPC ? npc.name : 'SYSTEM',
           })
         }
       }
@@ -604,6 +635,9 @@ export class SkyOffice extends Room<OfficeState> {
       if (this.pointService) {
         player.points = await this.pointService.getUserPoints(user.id)
       }
+
+      // Load user's point flow type
+      player.pointFlowType = user.pointFlowType || PointFlowType.SYSTEM
     } catch (error) {
       // Re-throw ServerErrors (authentication failures)
       if (error instanceof ServerError) {
@@ -626,10 +660,9 @@ export class SkyOffice extends Room<OfficeState> {
     const player = this.state.players.get(client.sessionId)
     const joinTime = (client as any).userData?.joinedAt || Date.now()
 
-    // Clear user's cooldowns to prevent memory leaks
-    if (player && player.userId && this.pointService) {
-      this.pointService.clearUserCooldowns(player.userId)
-    }
+    // Note: We intentionally do NOT clear cooldowns on disconnect.
+    // This prevents users from farming points by quickly reconnecting.
+    // The PointService cleanup interval handles expired cooldown cleanup.
 
     // Save player state to database before removing
     if (player && player.userId) {

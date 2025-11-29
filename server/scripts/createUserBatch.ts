@@ -15,6 +15,7 @@ interface UserData {
   password: string;
   email?: string;
   avatarTexture?: string;
+  pointFlowType?: string;
 }
 
 async function createUser(userData: UserData) {
@@ -45,6 +46,12 @@ async function createUser(userData: UserData) {
       ? userData.avatarTexture
       : "adam";
 
+    // Validate pointFlowType
+    const validFlowTypes = ["SYSTEM", "NPC"];
+    const pointFlowType = validFlowTypes.includes(userData.pointFlowType || "")
+      ? userData.pointFlowType
+      : "SYSTEM";
+
     // Hash password
     const hashedPassword = await bcrypt.hash(userData.password, SALT_ROUNDS);
 
@@ -55,6 +62,7 @@ async function createUser(userData: UserData) {
         password: hashedPassword,
         email: userData.email || null,
         avatarTexture: avatarTexture,
+        pointFlowType: pointFlowType,
       },
     });
 
@@ -62,6 +70,7 @@ async function createUser(userData: UserData) {
     console.log(`   ID: ${user.id}`);
     console.log(`   Email: ${user.email || "(none)"}`);
     console.log(`   Avatar: ${user.avatarTexture}`);
+    console.log(`   Point Flow: ${user.pointFlowType}`);
 
     return user;
   } catch (error) {
@@ -76,20 +85,23 @@ async function main() {
 
   if (args.length < 2) {
     console.log("\n=== Batch User Creation Script ===\n");
-    console.log("Usage: npx ts-node --transpile-only server/scripts/createUserBatch.ts <username> <password> [email] [avatar]\n");
+    console.log("Usage: npx ts-node --transpile-only server/scripts/createUserBatch.ts <username> <password> [email] [avatar] [pointFlowType]\n");
     console.log("Examples:");
     console.log("  npx ts-node --transpile-only server/scripts/createUserBatch.ts john pass123456");
     console.log("  npx ts-node --transpile-only server/scripts/createUserBatch.ts jane pass123456 jane@example.com lucy");
-    console.log("\nAvailable avatars: adam (default), ash, lucy, nancy\n");
+    console.log("  npx ts-node --transpile-only server/scripts/createUserBatch.ts bob pass123456 bob@example.com adam NPC");
+    console.log("\nAvailable avatars: adam (default), ash, lucy, nancy");
+    console.log("Point flow types: SYSTEM (default), NPC\n");
     process.exit(1);
   }
 
-  const [username, password, email, avatarTexture] = args;
+  const [username, password, email, avatarTexture, pointFlowType] = args;
 
   console.log("\n=== Creating User ===\n");
   console.log(`Username: ${username}`);
   console.log(`Email: ${email || "(none)"}`);
   console.log(`Avatar: ${avatarTexture || "adam (default)"}`);
+  console.log(`Point Flow: ${pointFlowType || "SYSTEM (default)"}`);
   console.log("\n⏳ Processing...\n");
 
   try {
@@ -98,6 +110,7 @@ async function main() {
       password,
       email,
       avatarTexture,
+      pointFlowType,
     });
   } catch (error) {
     process.exit(1);

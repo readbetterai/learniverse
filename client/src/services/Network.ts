@@ -216,7 +216,7 @@ export default class Network {
     // when points are updated - single source of truth for point updates
     this.room.onMessage(
       Message.POINTS_UPDATED,
-      (data: { pointsEarned: number; newTotal: number; reason: string }) => {
+      (data: { pointsEarned: number; newTotal: number; reason: string; awardedBy?: string }) => {
         // Validate incoming data before dispatching
         if (
           typeof data?.pointsEarned !== 'number' ||
@@ -226,7 +226,10 @@ export default class Network {
           console.error('Invalid points update data:', data)
           return
         }
-        store.dispatch(addPointNotification(data))
+        store.dispatch(addPointNotification({
+          ...data,
+          awardedBy: data.awardedBy || 'SYSTEM',
+        }))
       }
     )
 
