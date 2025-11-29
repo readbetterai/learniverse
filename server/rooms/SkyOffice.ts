@@ -22,6 +22,7 @@ import { EventLoggingService } from '../services/EventLoggingService'
 import { PointService } from '../services/PointService'
 import { EventType } from '../../types/EventTypes'
 import { PointType, PointFlowType, getNpcAwardMessage } from '../../types/PointTypes'
+// Note: PointType.NPC_MEANINGFUL_QUESTION is now used instead of NPC_CONVERSATION_START
 
 export class SkyOffice extends Room<OfficeState> {
   private dispatcher = new Dispatcher(this)
@@ -301,54 +302,8 @@ export class SkyOffice extends Room<OfficeState> {
         )
       }
 
-      // Award points for starting NPC conversation
-      if (this.pointService && player.userId) {
-        const pointResult = await this.pointService.awardPoints(
-          player.userId,
-          PointType.NPC_CONVERSATION_START,
-          { npcId, npcName: npc.name }
-        )
-
-        if (pointResult) {
-          player.points = pointResult.newTotal
-
-          // Check if user has NPC flow type - NPC announces the point award
-          if (player.pointFlowType === PointFlowType.NPC) {
-            const awardMessage = new NpcMessage()
-            awardMessage.author = npc.name
-            awardMessage.content = getNpcAwardMessage(npcId, pointResult.pointsEarned)
-            awardMessage.isNpc = true
-            awardMessage.createdAt = new Date().getTime()
-            conversation.messages.push(awardMessage)
-
-            // Save NPC award message to database
-            const dbConversationId = (conversation as any).dbConversationId
-            if (this.dbService && dbConversationId) {
-              try {
-                await this.dbService.addConversationMessage({
-                  conversationId: dbConversationId,
-                  author: npc.name,
-                  content: awardMessage.content,
-                  isNpc: true,
-                })
-              } catch (error) {
-                console.error('Failed to save NPC award message to database:', error)
-              }
-            }
-          }
-
-          // Send notification with source info for client customization
-          // For NPC flow, use shorter reason since NPC chat already explains the award
-          client.send(Message.POINTS_UPDATED, {
-            pointsEarned: pointResult.pointsEarned,
-            newTotal: pointResult.newTotal,
-            reason: player.pointFlowType === PointFlowType.NPC
-              ? 'Points awarded'
-              : `Started conversation with ${npc.name}`,
-            awardedBy: player.pointFlowType === PointFlowType.NPC ? npc.name : 'SYSTEM',
-          })
-        }
-      }
+      // Note: Points are now awarded for meaningful questions in SEND_NPC_MESSAGE handler
+      // instead of for starting conversations
 
       // Send conversation history to client
       client.send(Message.START_NPC_CONVERSATION, {
@@ -422,7 +377,7 @@ export class SkyOffice extends Room<OfficeState> {
         }
       }
 
-      // Generate AI response for Prof. Laura
+      // Generate AI response for Prof. Laura with question evaluation
       if (npcId === 'guide' && this.openAIService) {
         try {
           // Build conversation history for OpenAI
@@ -432,8 +387,8 @@ export class SkyOffice extends Room<OfficeState> {
             isNpc: msg.isNpc,
           }))
 
-          // Get AI response
-          const aiResponse = await this.openAIService.getChatResponse(
+          // Get AI response with meaningful question evaluation
+          const result = await this.openAIService.getChatResponseWithEvaluation(
             conversationHistory,
             npc.name,
             player.playerName
@@ -442,12 +397,61 @@ export class SkyOffice extends Room<OfficeState> {
           // Create and add NPC response message
           const npcResponseMessage = new NpcMessage()
           npcResponseMessage.author = npc.name
-          npcResponseMessage.content = aiResponse
+          npcResponseMessage.content = result.response
           npcResponseMessage.isNpc = true
           npcResponseMessage.createdAt = new Date().getTime()
           conversation.messages.push(npcResponseMessage)
 
-          console.log(`Prof. Laura responded to ${player.playerName}: ${aiResponse}`)
+          console.log(`Prof. Laura responded to ${player.playerName}: ${result.response}`)
+          console.log(`Meaningful question: ${result.isMeaningfulQuestion}`)
+
+          // Award points if the message was a meaningful question
+          if (result.isMeaningfulQuestion && this.pointService && player.userId) {
+            const pointResult = await this.pointService.awardPoints(
+              player.userId,
+              PointType.NPC_MEANINGFUL_QUESTION,
+              { npcId, npcName: npc.name, question: content }
+            )
+
+            if (pointResult) {
+              player.points = pointResult.newTotal
+              console.log(`🌟 Awarded ${pointResult.pointsEarned} points to ${player.playerName} for meaningful question`)
+
+              // Check if user has NPC flow type - NPC announces the point award
+              if (player.pointFlowType === PointFlowType.NPC) {
+                const awardMessage = new NpcMessage()
+                awardMessage.author = npc.name
+                awardMessage.content = getNpcAwardMessage(npcId, pointResult.pointsEarned)
+                awardMessage.isNpc = true
+                awardMessage.createdAt = new Date().getTime()
+                conversation.messages.push(awardMessage)
+
+                // Save NPC award message to database
+                if (this.dbService && dbConversationId) {
+                  try {
+                    await this.dbService.addConversationMessage({
+                      conversationId: dbConversationId,
+                      author: npc.name,
+                      content: awardMessage.content,
+                      isNpc: true,
+                    })
+                  } catch (error) {
+                    console.error('Failed to save NPC award message to database:', error)
+                  }
+                }
+              }
+
+              // Send notification with source info for client customization
+              client.send(Message.POINTS_UPDATED, {
+                pointsEarned: pointResult.pointsEarned,
+                newTotal: pointResult.newTotal,
+                reason: player.pointFlowType === PointFlowType.NPC
+                  ? 'Points awarded'
+                  : 'Asked a meaningful question',
+                awardedBy: player.pointFlowType === PointFlowType.NPC ? npc.name : 'SYSTEM',
+              })
+            }
+          }
 
           // Log NPC message received event
           if (this.eventLogger && player.userId) {
@@ -457,8 +461,9 @@ export class SkyOffice extends Room<OfficeState> {
               {
                 npcId,
                 npcName: npc.name,
-                message: aiResponse,
-                messageLength: aiResponse.length,
+                message: result.response,
+                messageLength: result.response.length,
+                wasMeaningfulQuestion: result.isMeaningfulQuestion,
                 timestamp: new Date()
               },
               client.sessionId
@@ -471,7 +476,7 @@ export class SkyOffice extends Room<OfficeState> {
               await this.dbService.addConversationMessage({
                 conversationId: dbConversationId,
                 author: npc.name,
-                content: aiResponse,
+                content: result.response,
                 isNpc: true,
               })
             } catch (error) {
@@ -482,7 +487,7 @@ export class SkyOffice extends Room<OfficeState> {
         } catch (error) {
           console.error(`Failed to get AI response for player ${player.playerName}:`, error)
 
-          // Send friendly fallback message
+          // Send friendly fallback message - NO points awarded on error (conservative approach)
           const fallbackMessage = new NpcMessage()
           fallbackMessage.author = npc.name
           fallbackMessage.content = "I apologize, I'm having a bit of trouble formulating my thoughts right now. Could you please try asking again?"

@@ -1,5 +1,6 @@
 export enum PointType {
-  NPC_CONVERSATION_START = 'NPC_CONVERSATION_START',
+  NPC_CONVERSATION_START = 'NPC_CONVERSATION_START', // Deprecated - kept for DB compatibility
+  NPC_MEANINGFUL_QUESTION = 'NPC_MEANINGFUL_QUESTION', // Points for asking meaningful questions
 }
 
 export enum PointFlowType {
@@ -18,8 +19,14 @@ export const POINT_VALUES: Record<PointType, PointConfig> = {
   [PointType.NPC_CONVERSATION_START]: {
     type: PointType.NPC_CONVERSATION_START,
     points: 10,
-    description: 'Started conversation with NPC',
+    description: 'Started conversation with NPC (deprecated)',
     cooldownMs: 60000, // 1 minute per NPC
+  },
+  [PointType.NPC_MEANINGFUL_QUESTION]: {
+    type: PointType.NPC_MEANINGFUL_QUESTION,
+    points: 10,
+    description: 'Asked a meaningful question',
+    cooldownMs: 0, // No cooldown - every meaningful question earns points
   },
 }
 
@@ -30,11 +37,11 @@ export interface PointsUpdatePayload {
   awardedBy: string // 'SYSTEM' or NPC name (e.g., 'Prof. Laura')
 }
 
-// Configurable award messages per NPC
+// Configurable award messages per NPC for meaningful questions
 export const NPC_AWARD_MESSAGES: Record<string, string> = {
-  guide: "Great job starting our conversation! I'm awarding you {points} points.",
+  guide: "Great question! I'm awarding you {points} points for your curiosity.",
   // Add more NPCs as needed, fallback for unknown NPCs
-  default: "I'm awarding you {points} points for engaging with me!",
+  default: "I'm awarding you {points} points for that thoughtful question!",
 }
 
 // Helper to get message with points interpolated
