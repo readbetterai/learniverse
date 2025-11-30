@@ -3,7 +3,6 @@ import styled from 'styled-components'
 
 import { useAppSelector } from './hooks'
 
-import RoomSelectionDialog from './components/RoomSelectionDialog'
 import LoginDialog from './components/LoginDialog'
 import WhiteboardDialog from './components/WhiteboardDialog'
 import NpcChat from './components/NpcChat'
@@ -21,7 +20,6 @@ const Backdrop = styled.div`
 function App() {
   const loggedIn = useAppSelector((state) => state.user.loggedIn)
   const whiteboardDialogOpen = useAppSelector((state) => state.whiteboard.whiteboardDialogOpen)
-  const roomJoined = useAppSelector((state) => state.room.roomJoined)
 
   let ui: JSX.Element
   if (loggedIn) {
@@ -37,12 +35,9 @@ function App() {
         </>
       )
     }
-  } else if (roomJoined) {
-    /* Render LoginDialog if not logged in but selected a room. */
-    ui = <LoginDialog />
   } else {
-    /* Render RoomSelectionDialog if yet selected a room. */
-    ui = <RoomSelectionDialog />
+    /* Render LoginDialog if not logged in. */
+    ui = <LoginDialog />
   }
 
   return (
