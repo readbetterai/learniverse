@@ -120,6 +120,9 @@ export default class Game extends Phaser.Scene {
     this.network.onItemUserAdded(this.handleItemUserAdded, this)
     this.network.onItemUserRemoved(this.handleItemUserRemoved, this)
 
+    // register own player state listener (for initial avatar from database)
+    phaserEvents.on(Event.MY_PLAYER_STATE_READY, this.handleMyPlayerStateReady, this)
+
     // register NPC event listeners
     phaserEvents.on(Event.NPC_JOINED, this.handleNPCJoined, this)
     phaserEvents.on(Event.NPC_UPDATED, this.handleNPCUpdated, this)
@@ -204,6 +207,21 @@ export default class Game extends Phaser.Scene {
 
   private handleMyVideoConnected() {
     this.myPlayer.videoConnected = true
+  }
+
+  // function to handle own player's initial state from server (including avatar texture)
+  private handleMyPlayerStateReady(player: IPlayer) {
+    if (player.anim) {
+      // Extract texture name from anim string (e.g., 'lucy_idle_down' -> 'lucy')
+      const texture = player.anim.split('_')[0]
+      if (texture !== this.myPlayer.playerTexture) {
+        this.myPlayer.setPlayerTexture(texture)
+      }
+    }
+    // Also update position if server has saved position
+    if (player.x && player.y) {
+      this.myPlayer.setPosition(player.x, player.y)
+    }
   }
 
   // function to update target position upon receiving player updates

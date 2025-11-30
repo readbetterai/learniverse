@@ -76,19 +76,19 @@ export default class Network {
   }
 
   // method to join the public lobby
-  async joinOrCreatePublic(credentials?: { username: string; password: string; avatarTexture?: string }) {
+  async joinOrCreatePublic(credentials?: { username: string; password: string }) {
     this.room = await this.client.joinOrCreate(RoomType.PUBLIC, credentials || {})
     this.initialize()
   }
 
   // method to join a custom room
-  async joinCustomById(roomId: string, password: string | null, credentials?: { username: string; password: string; avatarTexture?: string }) {
+  async joinCustomById(roomId: string, password: string | null, credentials?: { username: string; password: string }) {
     this.room = await this.client.joinById(roomId, { password, ...credentials })
     this.initialize()
   }
 
   // method to create a custom room
-  async createCustom(roomData: IRoomData, credentials?: { username: string; password: string; avatarTexture?: string }) {
+  async createCustom(roomData: IRoomData, credentials?: { username: string; password: string }) {
     const { name, description, password, autoDispose } = roomData
     this.room = await this.client.create(RoomType.CUSTOM, {
       name,
@@ -114,6 +114,21 @@ export default class Network {
       if (key === this.mySessionId) {
         // Set initial points for own player when they're added to state
         store.dispatch(setTotalPoints(player.points || 0))
+        // Emit event with player's initial state (including avatar from database)
+        phaserEvents.emit(Event.MY_PLAYER_STATE_READY, player)
+
+        // Track changes for own player to catch anim/points updates after initial sync
+        player.onChange = (changes) => {
+          changes.forEach((change) => {
+            const { field, value } = change
+            if (field === 'anim') {
+              phaserEvents.emit(Event.MY_PLAYER_STATE_READY, player)
+            }
+            if (field === 'points') {
+              store.dispatch(setTotalPoints(value as number))
+            }
+          })
+        }
         return
       }
 

@@ -7,15 +7,6 @@ import Alert from '@mui/material/Alert'
 import AlertTitle from '@mui/material/AlertTitle'
 import ArrowRightIcon from '@mui/icons-material/ArrowRight'
 
-import { Swiper, SwiperSlide } from 'swiper/react'
-import { Navigation } from 'swiper'
-import 'swiper/css'
-import 'swiper/css/navigation'
-
-import Adam from '../images/login/Adam_login.png'
-import Ash from '../images/login/Ash_login.png'
-import Lucy from '../images/login/Lucy_login.png'
-import Nancy from '../images/login/Nancy_login.png'
 import { useAppSelector, useAppDispatch } from '../hooks'
 import { setLoggedIn } from '../stores/UserStore'
 import { getAvatarString, getColorByString } from '../util'
@@ -68,48 +59,10 @@ const RoomDescription = styled.div`
   justify-content: center;
 `
 
-const SubTitle = styled.h3`
-  width: 160px;
-  font-size: 16px;
-  color: #eee;
-  text-align: center;
-`
-
 const Content = styled.div`
   display: flex;
+  flex-direction: column;
   margin: 36px 0;
-`
-
-const Left = styled.div`
-  margin-right: 48px;
-
-  --swiper-navigation-size: 24px;
-
-  .swiper {
-    width: 160px;
-    height: 220px;
-    border-radius: 8px;
-    overflow: hidden;
-  }
-
-  .swiper-slide {
-    width: 160px;
-    height: 220px;
-    background: #dbdbe0;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-
-  .swiper-slide img {
-    display: block;
-    width: 95px;
-    height: 136px;
-    object-fit: contain;
-  }
-`
-
-const Right = styled.div`
   width: 300px;
 `
 
@@ -127,23 +80,9 @@ const Warning = styled.div`
   gap: 3px;
 `
 
-const avatars = [
-  { name: 'adam', img: Adam },
-  { name: 'ash', img: Ash },
-  { name: 'lucy', img: Lucy },
-  { name: 'nancy', img: Nancy },
-]
-
-// shuffle the avatars array
-for (let i = avatars.length - 1; i > 0; i--) {
-  const j = Math.floor(Math.random() * (i + 1))
-  ;[avatars[i], avatars[j]] = [avatars[j], avatars[i]]
-}
-
 export default function LoginDialog() {
   const [username, setUsername] = useState<string>('')
   const [password, setPassword] = useState<string>('')
-  const [avatarIndex, setAvatarIndex] = useState<number>(0)
   const [error, setError] = useState<string>('')
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const dispatch = useAppDispatch()
@@ -176,13 +115,12 @@ export default function LoginDialog() {
       await game.network.joinOrCreatePublic({
         username,
         password,
-        avatarTexture: avatars[avatarIndex].name,
       })
 
       // If we get here, authentication succeeded
+      // Avatar texture is set from the database by the server via Colyseus state sync
       game.registerKeys()
       game.myPlayer.setPlayerName(username)
-      game.myPlayer.setPlayerTexture(avatars[avatarIndex].name)
       game.network.readyToConnect()
       dispatch(setLoggedIn(true))
     } catch (err: any) {
@@ -207,77 +145,57 @@ export default function LoginDialog() {
         <ArrowRightIcon /> {roomDescription}
       </RoomDescription>
       <Content>
-        <Left>
-          <SubTitle>Select an avatar</SubTitle>
-          <Swiper
-            modules={[Navigation]}
-            navigation
-            spaceBetween={0}
-            slidesPerView={1}
-            onSlideChange={(swiper) => {
-              setAvatarIndex(swiper.activeIndex)
-            }}
-          >
-            {avatars.map((avatar) => (
-              <SwiperSlide key={avatar.name}>
-                <img src={avatar.img} alt={avatar.name} />
-              </SwiperSlide>
-            ))}
-          </Swiper>
-        </Left>
-        <Right>
-          <TextField
-            autoFocus
-            fullWidth
-            label="Username"
-            variant="outlined"
-            color="secondary"
-            value={username}
-            disabled={isLoading}
-            onChange={(e) => setUsername(e.target.value)}
-            style={{ marginBottom: '16px' }}
-          />
-          <TextField
-            fullWidth
-            type="password"
-            label="Password"
-            variant="outlined"
-            color="secondary"
-            value={password}
-            disabled={isLoading}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          {error && (
-            <Warning>
-              <Alert variant="outlined" severity="error">
-                <AlertTitle>Error</AlertTitle>
-                {error}
-              </Alert>
-            </Warning>
-          )}
-          {!error && !videoConnected && (
-            <Warning>
-              <Alert variant="outlined" severity="info">
-                <AlertTitle>Tip</AlertTitle>
-                Connect webcam for video chat!
-              </Alert>
-              <Button
-                variant="outlined"
-                color="secondary"
-                onClick={() => {
-                  game.network.webRTC?.getUserMedia()
-                }}
-              >
-                Connect Webcam
-              </Button>
-            </Warning>
-          )}
-          {!error && videoConnected && (
-            <Warning>
-              <Alert variant="outlined" severity="success">Webcam connected!</Alert>
-            </Warning>
-          )}
-        </Right>
+        <TextField
+          autoFocus
+          fullWidth
+          label="Username"
+          variant="outlined"
+          color="secondary"
+          value={username}
+          disabled={isLoading}
+          onChange={(e) => setUsername(e.target.value)}
+          style={{ marginBottom: '16px' }}
+        />
+        <TextField
+          fullWidth
+          type="password"
+          label="Password"
+          variant="outlined"
+          color="secondary"
+          value={password}
+          disabled={isLoading}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+        {error && (
+          <Warning>
+            <Alert variant="outlined" severity="error">
+              <AlertTitle>Error</AlertTitle>
+              {error}
+            </Alert>
+          </Warning>
+        )}
+        {!error && !videoConnected && (
+          <Warning>
+            <Alert variant="outlined" severity="info">
+              <AlertTitle>Tip</AlertTitle>
+              Connect webcam for video chat!
+            </Alert>
+            <Button
+              variant="outlined"
+              color="secondary"
+              onClick={() => {
+                game.network.webRTC?.getUserMedia()
+              }}
+            >
+              Connect Webcam
+            </Button>
+          </Warning>
+        )}
+        {!error && videoConnected && (
+          <Warning>
+            <Alert variant="outlined" severity="success">Webcam connected!</Alert>
+          </Warning>
+        )}
       </Content>
       <Bottom>
         <Button

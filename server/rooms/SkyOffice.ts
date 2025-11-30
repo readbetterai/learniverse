@@ -600,7 +600,7 @@ export class SkyOffice extends Room<OfficeState> {
           user.id,
           EventType.USER_LOGIN,
           {
-            avatar: options.avatarTexture || user.avatarTexture,
+            avatar: user.avatarTexture,
             timestamp: new Date(),
             username: user.username
           },
@@ -622,19 +622,27 @@ export class SkyOffice extends Room<OfficeState> {
         userId: user.id
       }
 
-      // Apply avatar texture from options if provided, otherwise use saved one
-      if (options.avatarTexture) {
-        player.anim = options.avatarTexture + '_idle_down'
-      }
-
       // Load last position from game progress
       const progress = await this.dbService.getGameProgress(user.id)
       if (progress && progress.lastX !== null && progress.lastY !== null) {
         player.x = progress.lastX
         player.y = progress.lastY
-        player.anim = progress.lastAnim || user.avatarTexture + '_idle_down'
         console.log(`📍 Restored position for ${user.username}: (${progress.lastX}, ${progress.lastY})`)
       }
+
+      // Set avatar animation from database - always use user.avatarTexture for the character
+      // Extract only the animation state (e.g., 'idle_down', 'run_left') from saved progress if available
+      let animState = 'idle_down'
+      if (progress?.lastAnim) {
+        // lastAnim format: '{texture}_{action}_{direction}' e.g., 'adam_idle_down'
+        const parts = progress.lastAnim.split('_')
+        if (parts.length >= 3) {
+          // Extract action_direction (e.g., 'idle_down', 'run_left')
+          animState = parts.slice(1).join('_')
+        }
+      }
+      player.anim = user.avatarTexture + '_' + animState
+      console.log(`🎭 Set avatar for ${user.username}: ${player.anim} (from db: ${user.avatarTexture})`)
 
       // Load existing points
       if (this.pointService) {
