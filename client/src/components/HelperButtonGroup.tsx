@@ -1,22 +1,20 @@
 import React, { useState } from 'react'
 import styled from 'styled-components'
 import Fab from '@mui/material/Fab'
+import Button from '@mui/material/Button'
 import IconButton from '@mui/material/IconButton'
-import Avatar from '@mui/material/Avatar'
 import Tooltip from '@mui/material/Tooltip'
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline'
-import ShareIcon from '@mui/icons-material/Share'
 import CloseIcon from '@mui/icons-material/Close'
-import LightbulbIcon from '@mui/icons-material/Lightbulb'
-import ArrowRightIcon from '@mui/icons-material/ArrowRight'
-import GitHubIcon from '@mui/icons-material/GitHub'
-import TwitterIcon from '@mui/icons-material/Twitter'
+import LogoutIcon from '@mui/icons-material/Logout'
 import VideogameAssetIcon from '@mui/icons-material/VideogameAsset'
 import VideogameAssetOffIcon from '@mui/icons-material/VideogameAssetOff'
 
-import { setShowJoystick } from '../stores/UserStore'
+import { setShowJoystick, setLoggedIn, setSessionId } from '../stores/UserStore'
+import { setRoomJoined } from '../stores/RoomStore'
 import { useAppSelector, useAppDispatch } from '../hooks'
-import { getAvatarString, getColorByString } from '../util'
+import phaserGame from '../PhaserGame'
+import Bootstrap from '../scenes/Bootstrap'
 
 const Backdrop = styled.div`
   position: fixed;
@@ -50,10 +48,6 @@ const Wrapper = styled.div`
     top: 15px;
     right: 15px;
   }
-
-  .tip {
-    margin-left: 12px;
-  }
 `
 
 const ButtonGroup = styled.div`
@@ -67,33 +61,9 @@ const Title = styled.h3`
   text-align: center;
 `
 
-const RoomName = styled.div`
-  margin: 10px 20px;
-  max-width: 460px;
-  max-height: 150px;
-  overflow-wrap: anywhere;
-  overflow-y: auto;
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-  align-items: center;
-
-  h3 {
-    font-size: 24px;
-    color: #eee;
-  }
-`
-
-const RoomDescription = styled.div`
-  margin: 0 20px;
-  max-width: 460px;
-  max-height: 150px;
-  overflow-wrap: anywhere;
-  overflow-y: auto;
-  font-size: 16px;
+const ConfirmText = styled.p`
+  margin: 10px 0;
   color: #c2c2c2;
-  display: flex;
-  justify-content: center;
 `
 
 const StyledFab = styled(Fab)<{ target?: string }>`
@@ -104,13 +74,27 @@ const StyledFab = styled(Fab)<{ target?: string }>`
 
 export default function HelperButtonGroup() {
   const [showControlGuide, setShowControlGuide] = useState(false)
-  const [showRoomInfo, setShowRoomInfo] = useState(false)
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const showJoystick = useAppSelector((state) => state.user.showJoystick)
   const roomJoined = useAppSelector((state) => state.room.roomJoined)
-  const roomId = useAppSelector((state) => state.room.roomId)
-  const roomName = useAppSelector((state) => state.room.roomName)
-  const roomDescription = useAppSelector((state) => state.room.roomDescription)
   const dispatch = useAppDispatch()
+
+  const handleLogout = () => {
+    setShowLogoutConfirm(false)
+
+    // Get network instance and logout
+    const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
+    bootstrap.network.logout()
+
+    // Stop and remove the game scene
+    phaserGame.scene.stop('game')
+    phaserGame.scene.remove('game')
+
+    // Reset Redux state to trigger UI transition to LoginDialog
+    dispatch(setRoomJoined(false))
+    dispatch(setLoggedIn(false))
+    dispatch(setSessionId(''))
+  }
 
   return (
     <Backdrop>
@@ -122,27 +106,21 @@ export default function HelperButtonGroup() {
             </StyledFab>
           </Tooltip>
         )}
-        {showRoomInfo && (
+        {showLogoutConfirm && (
           <Wrapper>
-            <IconButton className="close" onClick={() => setShowRoomInfo(false)} size="small">
+            <IconButton className="close" onClick={() => setShowLogoutConfirm(false)} size="small">
               <CloseIcon />
             </IconButton>
-            <RoomName>
-              <Avatar style={{ background: getColorByString(roomName) }}>
-                {getAvatarString(roomName)}
-              </Avatar>
-              <h3>{roomName}</h3>
-            </RoomName>
-            <RoomDescription>
-              <ArrowRightIcon /> ID: {roomId}
-            </RoomDescription>
-            <RoomDescription>
-              <ArrowRightIcon /> Description: {roomDescription}
-            </RoomDescription>
-            <p className="tip">
-              <LightbulbIcon />
-              Shareable link coming up 😄
-            </p>
+            <Title>Logout</Title>
+            <ConfirmText>Are you sure you want to logout?</ConfirmText>
+            <ButtonGroup style={{ marginTop: '10px' }}>
+              <Button variant="outlined" onClick={() => setShowLogoutConfirm(false)}>
+                Cancel
+              </Button>
+              <Button variant="contained" color="error" onClick={handleLogout}>
+                Logout
+              </Button>
+            </ButtonGroup>
           </Wrapper>
         )}
         {showControlGuide && (
@@ -171,44 +149,30 @@ export default function HelperButtonGroup() {
       <ButtonGroup>
         {roomJoined && (
           <>
-            <Tooltip title="Room Info">
-              <StyledFab
-                size="small"
-                onClick={() => {
-                  setShowRoomInfo(!showRoomInfo)
-                  setShowControlGuide(false)
-                }}
-              >
-                <ShareIcon />
-              </StyledFab>
-            </Tooltip>
             <Tooltip title="Control Guide">
               <StyledFab
                 size="small"
                 onClick={() => {
                   setShowControlGuide(!showControlGuide)
-                  setShowRoomInfo(false)
+                  setShowLogoutConfirm(false)
                 }}
               >
                 <HelpOutlineIcon />
               </StyledFab>
             </Tooltip>
+            <Tooltip title="Logout">
+              <StyledFab
+                size="small"
+                onClick={() => {
+                  setShowLogoutConfirm(!showLogoutConfirm)
+                  setShowControlGuide(false)
+                }}
+              >
+                <LogoutIcon />
+              </StyledFab>
+            </Tooltip>
           </>
         )}
-        <Tooltip title="Visit Our GitHub">
-          <StyledFab
-            size="small"
-            href="https://github.com/kevinshen56714/SkyOffice"
-            target="_blank"
-          >
-            <GitHubIcon />
-          </StyledFab>
-        </Tooltip>
-        <Tooltip title="Follow Us on Twitter">
-          <StyledFab size="small" href="https://twitter.com/SkyOfficeApp" target="_blank">
-            <TwitterIcon />
-          </StyledFab>
-        </Tooltip>
       </ButtonGroup>
     </Backdrop>
   )
