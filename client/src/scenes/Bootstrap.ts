@@ -54,9 +54,19 @@ export default class Bootstrap extends Phaser.Scene {
 
   launchGame() {
     if (!this.preloadComplete) return
-    this.scene.launch('game', {
-      network: this.network,
-    })
+
+    const gameScene = this.scene.get('game')
+    if (gameScene) {
+      // Scene exists (was previously stopped after logout), restart it
+      this.scene.start('game', {
+        network: this.network,
+      })
+    } else {
+      // First launch, scene doesn't exist yet
+      this.scene.launch('game', {
+        network: this.network,
+      })
+    }
 
     // Note: setRoomJoined(true) is now called after successful authentication in LoginDialog
   }

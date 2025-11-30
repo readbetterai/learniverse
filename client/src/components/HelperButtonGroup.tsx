@@ -86,9 +86,8 @@ export default function HelperButtonGroup() {
     const bootstrap = phaserGame.scene.keys.bootstrap as Bootstrap
     bootstrap.network.logout()
 
-    // Stop and remove the game scene
+    // Stop the game scene (don't remove it, so it can be re-launched on next login)
     phaserGame.scene.stop('game')
-    phaserGame.scene.remove('game')
 
     // Reset Redux state to trigger UI transition to LoginDialog
     dispatch(setRoomJoined(false))

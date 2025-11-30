@@ -119,6 +119,12 @@ export default class Game extends Phaser.Scene {
     // register own player state listener (for initial avatar from database)
     phaserEvents.on(Event.MY_PLAYER_STATE_READY, this.handleMyPlayerStateReady, this)
 
+    // Handle player state that was already set before this scene initialized
+    const myPlayerState = this.network.getMyPlayer()
+    if (myPlayerState) {
+      this.handleMyPlayerStateReady(myPlayerState)
+    }
+
     // register NPC event listeners
     phaserEvents.on(Event.NPC_JOINED, this.handleNPCJoined, this)
     phaserEvents.on(Event.NPC_UPDATED, this.handleNPCUpdated, this)

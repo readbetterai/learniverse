@@ -406,4 +406,9 @@ export default class Network {
     })
     return npcs
   }
+
+  // method to get current player's state from room
+  getMyPlayer(): IPlayer | null {
+    return this.room?.state.players.get(this.mySessionId) ?? null
+  }
 }

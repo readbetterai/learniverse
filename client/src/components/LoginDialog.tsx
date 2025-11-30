@@ -94,13 +94,22 @@ export default function LoginDialog() {
       dispatch(setRoomJoined(true))
 
       // Wait for the game scene to be fully created before accessing myPlayer
-      const game = phaserGame.scene.keys.game as Game
-      game.events.once('create', () => {
-        // Avatar texture is set from the database by the server via Colyseus state sync
-        game.registerKeys()
-        game.myPlayer.setPlayerName(username)
-        dispatch(setLoggedIn(true))
-      })
+      // Use a small delay to ensure the scene is instantiated after launch/start
+      const waitForGameScene = () => {
+        const game = phaserGame.scene.keys.game as Game
+        if (game && game.events) {
+          game.events.once('create', () => {
+            // Avatar texture is set from the database by the server via Colyseus state sync
+            game.registerKeys()
+            game.myPlayer.setPlayerName(username)
+            dispatch(setLoggedIn(true))
+          })
+        } else {
+          // Scene not ready yet, wait and retry
+          setTimeout(waitForGameScene, 50)
+        }
+      }
+      waitForGameScene()
     } catch (err: any) {
       console.error('Login error:', err)
       // Extract error message from Colyseus error

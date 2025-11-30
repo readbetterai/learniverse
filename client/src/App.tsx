@@ -73,7 +73,6 @@ function App() {
           dispatch(setRoomJoined(true))
 
           // Wait for the game scene to be fully created
-          const game = phaserGame.scene.keys.game as Game
           console.log('[App] Waiting for game scene create event...')
 
           // Add timeout to detect if game scene never creates
@@ -81,17 +80,27 @@ function App() {
             console.error('[App] Game scene create event never fired after 5 seconds')
           }, 5000)
 
-          game.events.once('create', () => {
-            clearTimeout(createTimeout)
-            console.log('[App] Game scene created, registering keys and setting player name')
-            game.registerKeys()
-            if (username) {
-              game.myPlayer.setPlayerName(username)
+          // Wait for game scene to be ready before attaching event listener
+          const waitForGameScene = () => {
+            const game = phaserGame.scene.keys.game as Game
+            if (game && game.events) {
+              game.events.once('create', () => {
+                clearTimeout(createTimeout)
+                console.log('[App] Game scene created, registering keys and setting player name')
+                game.registerKeys()
+                if (username) {
+                  game.myPlayer.setPlayerName(username)
+                }
+                dispatch(setLoggedIn(true))
+                dispatch(setConnectionState('connected'))
+                console.log('[App] Reconnection complete, user logged in')
+              })
+            } else {
+              // Scene not ready yet, wait and retry
+              setTimeout(waitForGameScene, 50)
             }
-            dispatch(setLoggedIn(true))
-            dispatch(setConnectionState('connected'))
-            console.log('[App] Reconnection complete, user logged in')
-          })
+          }
+          waitForGameScene()
         } else {
           console.log('[App] Reconnection failed, showing login')
           dispatch(setConnectionState('disconnected'))
