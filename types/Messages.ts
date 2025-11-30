@@ -11,4 +11,6 @@ export enum Message {
   RECEIVE_NPC_MESSAGE,
   // Point system
   POINTS_UPDATED,
+  // Session management
+  SESSION_TOKEN,   // Server sends token to client after successful login
 }

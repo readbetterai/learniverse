@@ -515,26 +515,54 @@ export class SkyOffice extends Room<OfficeState> {
   async onJoin(client: Client, options: any) {
     const player = new Player()
 
-    // Require authentication with username and password
+    // Require database service for authentication
     if (!this.dbService) {
       throw new ServerError(503, 'Database service is not available')
     }
 
-    if (!options.username || !options.password) {
-      throw new ServerError(400, 'Username and password are required')
-    }
+    let user: any = null
+    let isTokenAuth = false
 
     try {
-      // Verify user credentials
-      const user = await this.dbService.verifyUserPassword(options.username, options.password)
+      // Mode 1: Token-based reconnection (for page refresh / return visits)
+      if (options.sessionToken) {
+        user = await this.dbService.validateSessionToken(options.sessionToken)
 
-      if (!user) {
-        throw new ServerError(401, 'Invalid username or password')
+        if (!user) {
+          throw new ServerError(401, 'Session expired. Please log in again.')
+        }
+
+        isTokenAuth = true
+        console.log(`🔄 User ${user.username} reconnecting via token`)
+      }
+      // Mode 2: Username/password authentication
+      else if (options.username && options.password) {
+        user = await this.dbService.verifyUserPassword(options.username, options.password)
+
+        if (!user) {
+          throw new ServerError(401, 'Invalid username or password')
+        }
+
+        // Generate new session token for persistent session
+        const tokenData = await this.dbService.createSessionToken(user.id)
+
+        // Send token to client for storage
+        client.send(Message.SESSION_TOKEN, {
+          token: tokenData.token,
+          expiresAt: tokenData.expiresAt.toISOString(),
+          username: user.username,
+        })
+
+        console.log(`✅ User ${user.username} authenticated with password, token issued`)
+      }
+      // No valid authentication method provided
+      else {
+        throw new ServerError(400, 'Username and password or session token required')
       }
 
-      // Update user's session
+      // Update user's session ID
       await this.dbService.updateUserSession(user.id, client.sessionId)
-      console.log(`✅ User ${user.username} authenticated and joined (${user.id})`)
+      console.log(`✅ User ${user.username} joined (${user.id})`)
 
       // Log login event
       if (this.eventLogger) {

@@ -18,12 +18,95 @@ import { pushNpcMessage } from '../stores/ChatStore'
 import { setWhiteboardUrls } from '../stores/WhiteboardStore'
 import { addPointNotification, setTotalPoints } from '../stores/PointStore'
 
+// localStorage keys for session persistence
+const STORAGE_KEYS = {
+  TOKEN: 'learniverse_token',
+  TOKEN_EXPIRES: 'learniverse_token_expires',
+  USERNAME: 'learniverse_username',
+}
+
 export default class Network {
   private client: Client
   private room?: Room<IOfficeState>
   private lobby!: Room
 
   mySessionId!: string
+
+  // ==================== SESSION TOKEN METHODS ====================
+
+  /**
+   * Store session token in localStorage after successful login
+   */
+  storeSessionToken(token: string, expiresAt: string, username: string) {
+    localStorage.setItem(STORAGE_KEYS.TOKEN, token)
+    localStorage.setItem(STORAGE_KEYS.TOKEN_EXPIRES, expiresAt)
+    localStorage.setItem(STORAGE_KEYS.USERNAME, username)
+    console.log('[Network] Session token stored')
+  }
+
+  /**
+   * Get stored token if valid (not expired)
+   * Returns null if no token or token is expired
+   */
+  getStoredToken(): string | null {
+    const token = localStorage.getItem(STORAGE_KEYS.TOKEN)
+    const expires = localStorage.getItem(STORAGE_KEYS.TOKEN_EXPIRES)
+
+    if (!token || !expires) {
+      return null
+    }
+
+    // Check if token has expired
+    if (new Date() > new Date(expires)) {
+      console.log('[Network] Stored token has expired')
+      this.clearStoredToken()
+      return null
+    }
+
+    return token
+  }
+
+  /**
+   * Get stored username (for display during reconnection)
+   */
+  getStoredUsername(): string | null {
+    return localStorage.getItem(STORAGE_KEYS.USERNAME)
+  }
+
+  /**
+   * Clear stored token (on logout or token invalidation)
+   */
+  clearStoredToken() {
+    localStorage.removeItem(STORAGE_KEYS.TOKEN)
+    localStorage.removeItem(STORAGE_KEYS.TOKEN_EXPIRES)
+    localStorage.removeItem(STORAGE_KEYS.USERNAME)
+    console.log('[Network] Session token cleared')
+  }
+
+  /**
+   * Join room using stored session token (for reconnection)
+   * Returns true if successful, false if failed
+   */
+  async joinWithToken(token: string): Promise<boolean> {
+    try {
+      console.log('[Network] Attempting to reconnect with token')
+      this.room = await this.client.joinOrCreate(RoomType.PUBLIC, { sessionToken: token })
+      this.initialize()
+      return true
+    } catch (error) {
+      console.error('[Network] Token reconnection failed:', error)
+      this.clearStoredToken()
+      return false
+    }
+  }
+
+  /**
+   * Logout - clear token and leave room
+   */
+  logout() {
+    this.clearStoredToken()
+    this.room?.leave()
+  }
 
   constructor() {
     const protocol = window.location.protocol.replace('http', 'ws')
@@ -219,6 +302,27 @@ export default class Network {
         }))
       }
     )
+
+    // when server sends session token (after successful password login)
+    this.room.onMessage(
+      Message.SESSION_TOKEN,
+      (data: { token: string; expiresAt: string; username: string }) => {
+        console.log('[Network] Received session token from server')
+        this.storeSessionToken(data.token, data.expiresAt, data.username)
+      }
+    )
+
+    // handle room disconnect for auto-reconnect detection
+    this.room.onLeave((code) => {
+      console.log('[Network] Room left with code:', code)
+      // Code 4000 = kicked by server (don't auto-reconnect)
+      // Normal close codes (1000-1999) = intentional disconnect
+      if (code === 4000 || (code >= 1000 && code < 2000)) {
+        return
+      }
+      // Abnormal disconnect (refresh, network issue) - emit event for UI
+      phaserEvents.emit(Event.CONNECTION_LOST)
+    })
 
   }
 

@@ -1,11 +1,14 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { sanitizeId } from '../util'
 
+export type ConnectionState = 'disconnected' | 'reconnecting' | 'connected'
+
 export const userSlice = createSlice({
   name: 'user',
   initialState: {
     sessionId: '',
     loggedIn: false,
+    connectionState: 'disconnected' as ConnectionState,
     playerNameMap: new Map<string, string>(),
     showJoystick: window.innerWidth < 650,
   },
@@ -15,6 +18,9 @@ export const userSlice = createSlice({
     },
     setLoggedIn: (state, action: PayloadAction<boolean>) => {
       state.loggedIn = action.payload
+    },
+    setConnectionState: (state, action: PayloadAction<ConnectionState>) => {
+      state.connectionState = action.payload
     },
     setPlayerNameMap: (state, action: PayloadAction<{ id: string; name: string }>) => {
       state.playerNameMap.set(sanitizeId(action.payload.id), action.payload.name)
@@ -31,6 +37,7 @@ export const userSlice = createSlice({
 export const {
   setSessionId,
   setLoggedIn,
+  setConnectionState,
   setPlayerNameMap,
   removePlayerNameMap,
   setShowJoystick,

@@ -135,6 +135,72 @@ export class DatabaseService {
     })
   }
 
+  // ==================== SESSION TOKEN OPERATIONS ====================
+
+  /**
+   * Create a new session token for the user (24-hour expiry)
+   * Used for persistent login across page refreshes
+   */
+  async createSessionToken(userId: string): Promise<{ token: string; expiresAt: Date }> {
+    const token = crypto.randomUUID()
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        sessionToken: token,
+        tokenExpiresAt: expiresAt,
+      },
+    })
+
+    return { token, expiresAt }
+  }
+
+  /**
+   * Validate session token and return user if valid
+   * Returns null if token doesn't exist, is expired, or user not found
+   */
+  async validateSessionToken(token: string): Promise<User | null> {
+    const user = await this.prisma.user.findUnique({
+      where: { sessionToken: token },
+    })
+
+    if (!user || !user.tokenExpiresAt) {
+      return null
+    }
+
+    // Check if token has expired
+    if (new Date() > user.tokenExpiresAt) {
+      // Token expired, clear it
+      await this.clearSessionToken(user.id)
+      return null
+    }
+
+    return user
+  }
+
+  /**
+   * Clear user's session token (on logout or token expiry)
+   */
+  async clearSessionToken(userId: string): Promise<User> {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        sessionToken: null,
+        tokenExpiresAt: null,
+      },
+    })
+  }
+
+  /**
+   * Find user by session token (without validation)
+   */
+  async getUserBySessionToken(token: string): Promise<User | null> {
+    return this.prisma.user.findUnique({
+      where: { sessionToken: token },
+    })
+  }
+
   // ==================== GAME PROGRESS OPERATIONS ====================
 
   /**

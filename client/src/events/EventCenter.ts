@@ -14,4 +14,6 @@ export enum Event {
   UPDATE_DIALOG_BUBBLE = 'update-dialog-bubble',
   NPC_JOINED = 'npc-joined',
   NPC_UPDATED = 'npc-updated',
+  // Session management events
+  CONNECTION_LOST = 'connection-lost',
 }
