@@ -7,7 +7,7 @@ import Alert from '@mui/material/Alert'
 import AlertTitle from '@mui/material/AlertTitle'
 import ArrowRightIcon from '@mui/icons-material/ArrowRight'
 
-import { useAppSelector, useAppDispatch } from '../hooks'
+import { useAppDispatch, useAppSelector } from '../hooks'
 import { setLoggedIn } from '../stores/UserStore'
 import { getAvatarString, getColorByString } from '../util'
 
@@ -86,10 +86,8 @@ export default function LoginDialog() {
   const [error, setError] = useState<string>('')
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const dispatch = useAppDispatch()
-  const videoConnected = useAppSelector((state) => state.user.videoConnected)
-  const roomJoined = useAppSelector((state) => state.room.roomJoined)
-  const roomName = useAppSelector((state) => state.room.roomName) || 'Learniverse'
-  const roomDescription = useAppSelector((state) => state.room.roomDescription) || 'Public Lobby'
+  const roomName = useAppSelector((state) => state.room.roomName)
+  const roomDescription = useAppSelector((state) => state.room.roomDescription)
   const game = phaserGame.scene.keys.game as Game
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -121,7 +119,6 @@ export default function LoginDialog() {
       // Avatar texture is set from the database by the server via Colyseus state sync
       game.registerKeys()
       game.myPlayer.setPlayerName(username)
-      game.network.readyToConnect()
       dispatch(setLoggedIn(true))
     } catch (err: any) {
       console.error('Login error:', err)
@@ -172,28 +169,6 @@ export default function LoginDialog() {
               <AlertTitle>Error</AlertTitle>
               {error}
             </Alert>
-          </Warning>
-        )}
-        {!error && !videoConnected && (
-          <Warning>
-            <Alert variant="outlined" severity="info">
-              <AlertTitle>Tip</AlertTitle>
-              Connect webcam for video chat!
-            </Alert>
-            <Button
-              variant="outlined"
-              color="secondary"
-              onClick={() => {
-                game.network.webRTC?.getUserMedia()
-              }}
-            >
-              Connect Webcam
-            </Button>
-          </Warning>
-        )}
-        {!error && videoConnected && (
-          <Warning>
-            <Alert variant="outlined" severity="success">Webcam connected!</Alert>
           </Warning>
         )}
       </Content>

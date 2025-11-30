@@ -5,7 +5,6 @@ export const userSlice = createSlice({
   name: 'user',
   initialState: {
     sessionId: '',
-    videoConnected: false,
     loggedIn: false,
     playerNameMap: new Map<string, string>(),
     showJoystick: window.innerWidth < 650,
@@ -13,9 +12,6 @@ export const userSlice = createSlice({
   reducers: {
     setSessionId: (state, action: PayloadAction<string>) => {
       state.sessionId = action.payload
-    },
-    setVideoConnected: (state, action: PayloadAction<boolean>) => {
-      state.videoConnected = action.payload
     },
     setLoggedIn: (state, action: PayloadAction<boolean>) => {
       state.loggedIn = action.payload
@@ -34,7 +30,6 @@ export const userSlice = createSlice({
 
 export const {
   setSessionId,
-  setVideoConnected,
   setLoggedIn,
   setPlayerNameMap,
   removePlayerNameMap,

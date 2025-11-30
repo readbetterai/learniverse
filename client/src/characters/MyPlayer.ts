@@ -5,7 +5,6 @@ import { sittingShiftData } from './Player'
 import Player from './Player'
 import Network from '../services/Network'
 import Chair from '../items/Chair'
-import Computer from '../items/Computer'
 import Whiteboard from '../items/Whiteboard'
 import Npc from '../items/Npc'
 
@@ -60,10 +59,6 @@ export default class MyPlayer extends Player {
         case ItemType.NPC:
           const npc = item as Npc
           npc.openDialog(network)
-          break
-        case ItemType.COMPUTER:
-          const computer = item as Computer
-          computer.openDialog(this.playerId, network)
           break
         case ItemType.WHITEBOARD:
           const whiteboard = item as Whiteboard

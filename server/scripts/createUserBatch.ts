@@ -4,8 +4,10 @@ import { resolve } from "path";
 import { PrismaClient } from "@prisma/client";
 import * as bcrypt from "bcrypt";
 
-// Load .env from server directory
-config({ path: resolve(__dirname, "../.env") });
+// Only load .env if DATABASE_URL is not already set (allows railway run to work)
+if (!process.env.DATABASE_URL) {
+  config({ path: resolve(__dirname, "../.env") });
+}
 
 const prisma = new PrismaClient();
 const SALT_ROUNDS = 10;

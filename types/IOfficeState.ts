@@ -6,8 +6,6 @@ export interface IPlayer extends Schema {
   x: number
   y: number
   anim: string
-  readyToConnect: boolean
-  videoConnected: boolean
   userId: string
   points: number
   // pointFlowType is server-side only, not synced to clients
@@ -19,10 +17,6 @@ export interface IPlayer extends Schema {
   idleStartTime?: number
 }
 
-export interface IComputer extends Schema {
-  connectedUser: SetSchema<string>
-}
-
 export interface IWhiteboard extends Schema {
   roomId: string
   connectedUser: SetSchema<string>
@@ -30,7 +24,6 @@ export interface IWhiteboard extends Schema {
 
 export interface IOfficeState extends Schema {
   players: MapSchema<IPlayer>
-  computers: MapSchema<IComputer>
   whiteboards: MapSchema<IWhiteboard>
   npcs: MapSchema<INPC>
 }

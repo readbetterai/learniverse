@@ -1,17 +1,13 @@
 import bcrypt from 'bcrypt'
 import { Room, Client, ServerError } from 'colyseus'
 import { Dispatcher } from '@colyseus/command'
-import { Player, OfficeState, Computer, Whiteboard } from './schema/OfficeState'
+import { Player, OfficeState, Whiteboard } from './schema/OfficeState'
 import { NPC, NpcMessage, Conversation } from './schema/NpcState'
 import { Message } from '../../types/Messages'
 import { IRoomData } from '../../types/Rooms'
 import { whiteboardRoomIds } from './schema/OfficeState'
 import PlayerUpdateCommand from './commands/PlayerUpdateCommand'
 import PlayerUpdateNameCommand from './commands/PlayerUpdateNameCommand'
-import {
-  ComputerAddUserCommand,
-  ComputerRemoveUserCommand,
-} from './commands/ComputerUpdateArrayCommand'
 import {
   WhiteboardAddUserCommand,
   WhiteboardRemoveUserCommand,
@@ -89,11 +85,6 @@ export class SkyOffice extends Room<OfficeState> {
       this.pointService = undefined
     }
 
-    // HARD-CODED: Add 5 computers in a room
-    for (let i = 0; i < 5; i++) {
-      this.state.computers.set(i.toString(), new Computer())
-    }
-
     // HARD-CODED: Add 3 whiteboards in a room
     for (let i = 0; i < 3; i++) {
       this.state.whiteboards.set(i.toString(), new Whiteboard())
@@ -101,34 +92,6 @@ export class SkyOffice extends Room<OfficeState> {
 
     // Spawn NPCs
     this.spawnNPCs()
-
-    // when a player connect to a computer, add to the computer connectedUser array
-    this.onMessage(Message.CONNECT_TO_COMPUTER, (client, message: { computerId: string }) => {
-      this.dispatcher.dispatch(new ComputerAddUserCommand(), {
-        client,
-        computerId: message.computerId,
-      })
-    })
-
-    // when a player disconnect from a computer, remove from the computer connectedUser array
-    this.onMessage(Message.DISCONNECT_FROM_COMPUTER, (client, message: { computerId: string }) => {
-      this.dispatcher.dispatch(new ComputerRemoveUserCommand(), {
-        client,
-        computerId: message.computerId,
-      })
-    })
-
-    // when a player stop sharing screen
-    this.onMessage(Message.STOP_SCREEN_SHARE, (client, message: { computerId: string }) => {
-      const computer = this.state.computers.get(message.computerId)
-      computer.connectedUser.forEach((id) => {
-        this.clients.forEach((cli) => {
-          if (cli.sessionId === id && cli.sessionId !== client.sessionId) {
-            cli.send(Message.STOP_SCREEN_SHARE, client.sessionId)
-          }
-        })
-      })
-    })
 
     // when a player connect to a whiteboard, add to the whiteboard connectedUser array
     this.onMessage(Message.CONNECT_TO_WHITEBOARD, (client, message: { whiteboardId: string }) => {
@@ -167,27 +130,6 @@ export class SkyOffice extends Room<OfficeState> {
       this.dispatcher.dispatch(new PlayerUpdateNameCommand(), {
         client,
         name: message.name,
-      })
-    })
-
-    // when a player is ready to connect, call the PlayerReadyToConnectCommand
-    this.onMessage(Message.READY_TO_CONNECT, (client) => {
-      const player = this.state.players.get(client.sessionId)
-      if (player) player.readyToConnect = true
-    })
-
-    // when a player is ready to connect, call the PlayerReadyToConnectCommand
-    this.onMessage(Message.VIDEO_CONNECTED, (client) => {
-      const player = this.state.players.get(client.sessionId)
-      if (player) player.videoConnected = true
-    })
-
-    // when a player disconnect a stream, broadcast the signal to the other player connected to the stream
-    this.onMessage(Message.DISCONNECT_STREAM, (client, message: { clientId: string }) => {
-      this.clients.forEach((cli) => {
-        if (cli.sessionId === message.clientId) {
-          cli.send(Message.DISCONNECT_STREAM, client.sessionId)
-        }
       })
     })
 
@@ -726,11 +668,6 @@ export class SkyOffice extends Room<OfficeState> {
     if (this.state.players.has(client.sessionId)) {
       this.state.players.delete(client.sessionId)
     }
-    this.state.computers.forEach((computer) => {
-      if (computer.connectedUser.has(client.sessionId)) {
-        computer.connectedUser.delete(client.sessionId)
-      }
-    })
     this.state.whiteboards.forEach((whiteboard) => {
       if (whiteboard.connectedUser.has(client.sessionId)) {
         whiteboard.connectedUser.delete(client.sessionId)

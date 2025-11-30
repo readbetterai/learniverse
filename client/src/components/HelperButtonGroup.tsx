@@ -159,19 +159,12 @@ export default function HelperButtonGroup() {
                 <strong>E</strong> to sit down (when facing a chair)
               </li>
               <li>
-                <strong>R</strong> to use computer to screen share (when facing a computer)
-              </li>
-              <li>
                 <strong>Enter</strong> to open chat
               </li>
               <li>
                 <strong>ESC</strong> to close chat
               </li>
             </ul>
-            <p className="tip">
-              <LightbulbIcon />
-              Video connection will start if you are close to someone else
-            </p>
           </Wrapper>
         )}
       </div>

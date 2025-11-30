@@ -114,11 +114,7 @@ export default class Game extends Phaser.Scene {
     // register network event listeners
     this.network.onPlayerJoined(this.handlePlayerJoined, this)
     this.network.onPlayerLeft(this.handlePlayerLeft, this)
-    this.network.onMyPlayerReady(this.handleMyPlayerReady, this)
-    this.network.onMyPlayerVideoConnected(this.handleMyVideoConnected, this)
     this.network.onPlayerUpdated(this.handlePlayerUpdated, this)
-    this.network.onItemUserAdded(this.handleItemUserAdded, this)
-    this.network.onItemUserRemoved(this.handleItemUserRemoved, this)
 
     // register own player state listener (for initial avatar from database)
     phaserEvents.on(Event.MY_PLAYER_STATE_READY, this.handleMyPlayerStateReady, this)
@@ -201,14 +197,6 @@ export default class Game extends Phaser.Scene {
     }
   }
 
-  private handleMyPlayerReady() {
-    this.myPlayer.readyToConnect = true
-  }
-
-  private handleMyVideoConnected() {
-    this.myPlayer.videoConnected = true
-  }
-
   // function to handle own player's initial state from server (including avatar texture)
   private handleMyPlayerStateReady(player: IPlayer) {
     if (player.anim) {
@@ -231,15 +219,7 @@ export default class Game extends Phaser.Scene {
   }
 
   private handlePlayersOverlap(myPlayer, otherPlayer) {
-    otherPlayer.makeCall(myPlayer, this.network?.webRTC)
-  }
-
-  private handleItemUserAdded(playerId: string, itemId: string, itemType: ItemType) {
-    // Computers and whiteboards removed - no items to handle
-  }
-
-  private handleItemUserRemoved(playerId: string, itemId: string, itemType: ItemType) {
-    // Computers and whiteboards removed - no items to handle
+    // Video chat removed - no action on player overlap
   }
 
   // function to add new NPC when spawned by server

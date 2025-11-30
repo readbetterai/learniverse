@@ -1,10 +1,9 @@
 import { Client, Room } from 'colyseus.js'
-import { IComputer, IOfficeState, IPlayer, IWhiteboard } from '../../../types/IOfficeState'
+import { IOfficeState, IPlayer, IWhiteboard } from '../../../types/IOfficeState'
 import { INPC } from '../../../types/INpc'
 import { Message } from '../../../types/Messages'
 import { IRoomData, RoomType } from '../../../types/Rooms'
 import { ItemType } from '../../../types/Items'
-import WebRTC from '../web/WebRTC'
 import { phaserEvents, Event } from '../events/EventCenter'
 import store from '../stores'
 import { setSessionId, setPlayerNameMap, removePlayerNameMap } from '../stores/UserStore'
@@ -23,7 +22,6 @@ export default class Network {
   private client: Client
   private room?: Room<IOfficeState>
   private lobby!: Room
-  webRTC?: WebRTC
 
   mySessionId!: string
 
@@ -45,7 +43,6 @@ export default class Network {
 
     phaserEvents.on(Event.MY_PLAYER_NAME_CHANGE, this.updatePlayerName, this)
     phaserEvents.on(Event.MY_PLAYER_TEXTURE_CHANGE, this.updatePlayer, this)
-    phaserEvents.on(Event.PLAYER_DISCONNECTED, this.playerStreamDisconnect, this)
   }
 
   /**
@@ -107,7 +104,6 @@ export default class Network {
     this.lobby.leave()
     this.mySessionId = this.room.sessionId
     store.dispatch(setSessionId(this.room.sessionId))
-    this.webRTC = new WebRTC(this.mySessionId, this)
 
     // new instance added to the players MapSchema
     this.room.state.players.onAdd = (player: IPlayer, key: string) => {
@@ -150,20 +146,7 @@ export default class Network {
     // an instance removed from the players MapSchema
     this.room.state.players.onRemove = (player: IPlayer, key: string) => {
       phaserEvents.emit(Event.PLAYER_LEFT, key)
-      this.webRTC?.deleteVideoStream(key)
-      this.webRTC?.deleteOnCalledVideoStream(key)
       store.dispatch(removePlayerNameMap(key))
-    }
-
-    // new instance added to the computers MapSchema
-    this.room.state.computers.onAdd = (computer: IComputer, key: string) => {
-      // track changes on every child object's connectedUser
-      computer.connectedUser.onAdd = (item, index) => {
-        phaserEvents.emit(Event.ITEM_USER_ADDED, item, key, ItemType.COMPUTER)
-      }
-      computer.connectedUser.onRemove = (item, index) => {
-        phaserEvents.emit(Event.ITEM_USER_REMOVED, item, key, ItemType.COMPUTER)
-      }
     }
 
     // new instance added to the whiteboards MapSchema
@@ -217,17 +200,6 @@ export default class Network {
       store.dispatch(setJoinedRoomData(content))
     })
 
-    // when a peer disconnects with myPeer
-    this.room.onMessage(Message.DISCONNECT_STREAM, (clientId: string) => {
-      this.webRTC?.deleteOnCalledVideoStream(clientId)
-    })
-
-    // when a computer user stops sharing screen
-    this.room.onMessage(Message.STOP_SCREEN_SHARE, (clientId: string) => {
-      const computerState = store.getState().computer
-      computerState.shareScreenManager?.onUserLeft(clientId)
-    })
-
     // when points are updated - single source of truth for point updates
     this.room.onMessage(
       Message.POINTS_UPDATED,
@@ -276,16 +248,6 @@ export default class Network {
     phaserEvents.on(Event.PLAYER_LEFT, callback, context)
   }
 
-  // method to register event listener and call back function when myPlayer is ready to connect
-  onMyPlayerReady(callback: (key: string) => void, context?: any) {
-    phaserEvents.on(Event.MY_PLAYER_READY, callback, context)
-  }
-
-  // method to register event listener and call back function when my video is connected
-  onMyPlayerVideoConnected(callback: (key: string) => void, context?: any) {
-    phaserEvents.on(Event.MY_PLAYER_VIDEO_CONNECTED, callback, context)
-  }
-
   // method to register event listener and call back function when a player updated
   onPlayerUpdated(
     callback: (field: string, value: number | string, key: string) => void,
@@ -304,42 +266,12 @@ export default class Network {
     this.room?.send(Message.UPDATE_PLAYER_NAME, { name: currentName })
   }
 
-  // method to send ready-to-connect signal to Colyseus server
-  readyToConnect() {
-    this.room?.send(Message.READY_TO_CONNECT)
-    phaserEvents.emit(Event.MY_PLAYER_READY)
-  }
-
-  // method to send ready-to-connect signal to Colyseus server
-  videoConnected() {
-    this.room?.send(Message.VIDEO_CONNECTED)
-    phaserEvents.emit(Event.MY_PLAYER_VIDEO_CONNECTED)
-  }
-
-  // method to send stream-disconnection signal to Colyseus server
-  playerStreamDisconnect(id: string) {
-    this.room?.send(Message.DISCONNECT_STREAM, { clientId: id })
-    this.webRTC?.deleteVideoStream(id)
-  }
-
-  connectToComputer(id: string) {
-    this.room?.send(Message.CONNECT_TO_COMPUTER, { computerId: id })
-  }
-
-  disconnectFromComputer(id: string) {
-    this.room?.send(Message.DISCONNECT_FROM_COMPUTER, { computerId: id })
-  }
-
   connectToWhiteboard(id: string) {
     this.room?.send(Message.CONNECT_TO_WHITEBOARD, { whiteboardId: id })
   }
 
   disconnectFromWhiteboard(id: string) {
     this.room?.send(Message.DISCONNECT_FROM_WHITEBOARD, { whiteboardId: id })
-  }
-
-  onStopScreenShare(id: string) {
-    this.room?.send(Message.STOP_SCREEN_SHARE, { computerId: id })
   }
 
   // method to interact with NPC
