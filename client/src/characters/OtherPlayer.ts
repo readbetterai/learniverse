@@ -10,7 +10,6 @@ export default class OtherPlayer extends Player {
   private lastUpdateTimestamp?: number
   private connectionBufferTime = 0
   private connected = false
-  private playContainerBody: Phaser.Physics.Arcade.Body
   private myPlayer?: MyPlayer
 
   constructor(
@@ -26,7 +25,6 @@ export default class OtherPlayer extends Player {
     this.targetPosition = [x, y]
 
     this.playerName.setText(name)
-    this.playContainerBody = this.playerContainer.body as Phaser.Physics.Arcade.Body
   }
 
   makeCall(myPlayer: MyPlayer, webRTC: WebRTC) {
@@ -148,9 +146,8 @@ export default class OtherPlayer extends Player {
     // update character velocity
     this.setVelocity(vx, vy)
     this.body.velocity.setLength(speed)
-    // also update playerNameContainer velocity
-    this.playContainerBody.setVelocity(vx, vy)
-    this.playContainerBody.velocity.setLength(speed)
+    // sync playerNameContainer position to follow sprite
+    this.playerContainer.setPosition(this.x, this.y - 30)
 
     // while currently connected with myPlayer
     // if myPlayer and the otherPlayer stop overlapping, delete video stream
