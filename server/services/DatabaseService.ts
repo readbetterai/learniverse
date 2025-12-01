@@ -1,5 +1,6 @@
 import { PrismaClient, User, NpcConversation, ConversationMessage, GameProgress } from '@prisma/client'
 import * as bcrypt from 'bcrypt'
+import { randomUUID } from 'crypto'
 
 /**
  * DatabaseService - Singleton wrapper around Prisma Client
@@ -142,7 +143,7 @@ export class DatabaseService {
    * Used for persistent login across page refreshes
    */
   async createSessionToken(userId: string): Promise<{ token: string; expiresAt: Date }> {
-    const token = crypto.randomUUID()
+    const token = randomUUID()
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
 
     await this.prisma.user.update({
