@@ -4,6 +4,7 @@
   "description": "Server for SkyOffice",
   "main": ".eslintrc.js",
   "scripts": {
+    "build": "npx prisma generate --schema=server/prisma/schema.prisma && npx prisma migrate deploy --schema=server/prisma/schema.prisma",
     "start": "cd server && ts-node-dev --project tsconfig.server.json --respawn --transpile-only index.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
