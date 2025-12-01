@@ -82,6 +82,7 @@ export default class Game extends Phaser.Scene {
     const furnitureLayer = this.map.createLayer('Furniture', [FloorAndGround, ClassroomAndLibrary])
     const chairsLayer = this.map.createLayer('Chairs', [FloorAndGround, ClassroomAndLibrary])
     groundLayer.setCollisionByProperty({ collides: true })
+    furnitureLayer.setCollisionByProperty({ collides: true })
 
     // debugDraw(groundLayer, this)
 
@@ -97,6 +98,7 @@ export default class Game extends Phaser.Scene {
     this.cameras.main.startFollow(this.myPlayer, true)
 
     this.physics.add.collider([this.myPlayer, this.myPlayer.playerContainer], groundLayer)
+    this.physics.add.collider([this.myPlayer, this.myPlayer.playerContainer], furnitureLayer)
 
     this.physics.add.overlap(
       this.playerSelector,
