@@ -336,15 +336,25 @@ export class SkyOffice extends Room<OfficeState> {
             player.playerName
           )
 
-          // Create and add NPC response message
-          const npcResponseMessage = new NpcMessage()
-          npcResponseMessage.author = npc.name
-          npcResponseMessage.content = result.response
-          npcResponseMessage.isNpc = true
-          npcResponseMessage.createdAt = new Date().getTime()
-          conversation.messages.push(npcResponseMessage)
+          // Check if this is the "test points please" magic spell
+          // When used with NPC flow, skip OpenAI's response to avoid awkward/duplicate messages
+          const isTestTrigger = content.toLowerCase().includes('test points please')
+          const shouldSkipNormalResponse =
+            isTestTrigger &&
+            result.isMeaningfulQuestion &&
+            player.pointFlowType === PointFlowType.NPC
 
-          console.log(`Prof. Laura responded to ${player.playerName}: ${result.response}`)
+          // Only add OpenAI's conversational response if NOT skipping
+          if (!shouldSkipNormalResponse) {
+            const npcResponseMessage = new NpcMessage()
+            npcResponseMessage.author = npc.name
+            npcResponseMessage.content = result.response
+            npcResponseMessage.isNpc = true
+            npcResponseMessage.createdAt = new Date().getTime()
+            conversation.messages.push(npcResponseMessage)
+          }
+
+          console.log(`Prof. Laura responded to ${player.playerName}: ${result.response}${shouldSkipNormalResponse ? ' (skipped - test trigger)' : ''}`)
           console.log(`Meaningful question: ${result.isMeaningfulQuestion}`)
 
           // Award points if the message was a meaningful question
@@ -412,8 +422,8 @@ export class SkyOffice extends Room<OfficeState> {
             )
           }
 
-          // Save NPC response to database
-          if (this.dbService && dbConversationId) {
+          // Save NPC response to database (skip if test trigger with NPC flow)
+          if (!shouldSkipNormalResponse && this.dbService && dbConversationId) {
             try {
               await this.dbService.addConversationMessage({
                 conversationId: dbConversationId,
