@@ -76,8 +76,11 @@ export default class Game extends Phaser.Scene {
 
     this.map = this.make.tilemap({ key: 'tilemap' })
     const FloorAndGround = this.map.addTilesetImage('FloorAndGround', 'tiles_wall')
+    const ClassroomAndLibrary = this.map.addTilesetImage('Classroom_and_library', 'tiles_classroom')
 
-    const groundLayer = this.map.createLayer('Ground', FloorAndGround)
+    const groundLayer = this.map.createLayer('Floor', FloorAndGround)
+    const furnitureLayer = this.map.createLayer('Furniture', [FloorAndGround, ClassroomAndLibrary])
+    const chairsLayer = this.map.createLayer('Chairs', [FloorAndGround, ClassroomAndLibrary])
     groundLayer.setCollisionByProperty({ collides: true })
 
     // debugDraw(groundLayer, this)
