@@ -163,14 +163,16 @@ export class SkyOffice extends Room<OfficeState> {
 
       const conversation = npc.conversations.get(client.sessionId)!
 
-      // Load conversation history from database
+      // Load conversation history from database (filtered by session start time)
       if (this.dbService && player.userId) {
         try {
-          const dbConversation = await this.dbService.getActiveConversation(player.userId, npcId)
+          // Get session start time for filtering - only show messages from current login session
+          const sessionStartedAt = (client as any).userData?.sessionStartedAt as Date | undefined
+          const dbConversation = await this.dbService.getActiveConversation(player.userId, npcId, sessionStartedAt)
 
           if (dbConversation) {
-            // Conversation exists in DB - restore messages to in-memory state
-            console.log(`📚 Loaded ${dbConversation.messages.length} messages from database`)
+            // Conversation exists in DB - restore messages to in-memory state (filtered by session)
+            console.log(`📚 Loaded ${dbConversation.messages.length} messages from database (session-scoped)`)
 
             // Clear and populate conversation messages from database
             conversation.messages.clear()
@@ -570,9 +572,11 @@ export class SkyOffice extends Room<OfficeState> {
         throw new ServerError(400, 'Username and password or session token required')
       }
 
-      // Update user's session ID
-      await this.dbService.updateUserSession(user.id, client.sessionId)
-      console.log(`✅ User ${user.username} joined (${user.id})`)
+      // Update user's session ID (and sessionStartedAt on fresh credential logins)
+      const updatedUser = await this.dbService.updateUserSession(user.id, client.sessionId, !isTokenAuth)
+      // Store sessionStartedAt for later use (e.g., filtering chat history)
+      user.sessionStartedAt = updatedUser.sessionStartedAt
+      console.log(`✅ User ${user.username} joined (${user.id})${!isTokenAuth ? ' - new session started' : ' - reconnected'}`)
 
       // Log login event
       if (this.eventLogger) {
@@ -595,11 +599,12 @@ export class SkyOffice extends Room<OfficeState> {
       player.userId = user.id
       player.playerName = user.username as string
 
-      // Store join time on client for session duration calculation
+      // Store join time and session data on client for session duration calculation and chat filtering
       (client as any).userData = {
         ...((client as any).userData || {}),
         joinedAt: Date.now(),
-        userId: user.id
+        userId: user.id,
+        sessionStartedAt: user.sessionStartedAt, // For filtering chat history to current session
       }
 
       // Load last position from game progress

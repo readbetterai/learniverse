@@ -5,7 +5,7 @@
   "main": ".eslintrc.js",
   "scripts": {
     "build": "npx prisma generate --schema=server/prisma/schema.prisma",
-    "start": "npx prisma migrate deploy --schema=server/prisma/schema.prisma && cd server && ts-node-dev --project tsconfig.server.json --respawn --transpile-only index.ts",
+    "start": "cd server && npx prisma migrate deploy --schema=prisma/schema.prisma && ts-node-dev --project tsconfig.server.json --respawn --transpile-only index.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {

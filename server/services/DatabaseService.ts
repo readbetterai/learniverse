@@ -118,11 +118,18 @@ export class DatabaseService {
 
   /**
    * Update user's session ID (on join)
+   * @param userId - User ID
+   * @param sessionId - Colyseus session ID
+   * @param isNewLogin - If true, also update sessionStartedAt (credential login vs token reconnection)
    */
-  async updateUserSession(userId: string, sessionId: string): Promise<User> {
+  async updateUserSession(userId: string, sessionId: string, isNewLogin: boolean = false): Promise<User> {
     return this.prisma.user.update({
       where: { id: userId },
-      data: { sessionId },
+      data: {
+        sessionId,
+        // Only update sessionStartedAt on fresh credential logins, not on token reconnections
+        ...(isNewLogin ? { sessionStartedAt: new Date() } : {}),
+      },
     })
   }
 
@@ -264,8 +271,20 @@ export class DatabaseService {
   /**
    * Get active conversation between user and NPC
    * Returns the most recent conversation (with endedAt = null, or most recent one)
+   * @param userId - User ID
+   * @param npcId - NPC ID
+   * @param afterTimestamp - If provided, only return messages created after this timestamp (for session-scoped chat)
    */
-  async getActiveConversation(userId: string, npcId: string): Promise<(NpcConversation & { messages: ConversationMessage[] }) | null> {
+  async getActiveConversation(
+    userId: string,
+    npcId: string,
+    afterTimestamp?: Date
+  ): Promise<(NpcConversation & { messages: ConversationMessage[] }) | null> {
+    // Build the messages filter - only include messages after the timestamp if provided
+    const messagesFilter = afterTimestamp
+      ? { where: { timestamp: { gte: afterTimestamp } }, orderBy: { timestamp: 'asc' as const } }
+      : { orderBy: { timestamp: 'asc' as const } }
+
     // First try to get an active conversation (endedAt is null)
     const activeConversation = await this.prisma.npcConversation.findFirst({
       where: {
@@ -274,9 +293,7 @@ export class DatabaseService {
         endedAt: null,
       },
       include: {
-        messages: {
-          orderBy: { timestamp: 'asc' },
-        },
+        messages: messagesFilter,
       },
       orderBy: { startedAt: 'desc' },
     })
@@ -292,9 +309,7 @@ export class DatabaseService {
         npcId,
       },
       include: {
-        messages: {
-          orderBy: { timestamp: 'asc' },
-        },
+        messages: messagesFilter,
       },
       orderBy: { startedAt: 'desc' },
     })
