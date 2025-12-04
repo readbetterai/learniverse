@@ -22,25 +22,12 @@ export default class Npc extends Item {
 
     this.clearDialogBox()
 
-    // Get existing conversation from network state
-    const room = network.getRoom()
-    const npcs = room?.state.npcs
-    const npc = npcs?.get(this.npcId)
-    const conversation = npc?.conversations.get(room?.sessionId || '')
-
-    // Convert messages to plain objects
-    const messages = conversation?.messages.map(msg => ({
-      author: msg.author,
-      createdAt: msg.createdAt,
-      content: msg.content,
-      isNpc: msg.isNpc,
-    })) || []
-
-    // Start NPC chat UI
+    // Start NPC chat UI with empty messages
+    // Server will send conversation history via START_NPC_CONVERSATION message
     store.dispatch(startNpcChat({
       npcId: this.npcId,
       npcName: this.npcName,
-      messages: messages,
+      messages: [],
     }))
 
     // Send start conversation message to server

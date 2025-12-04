@@ -14,7 +14,7 @@ import {
   addAvailableRooms,
   removeAvailableRooms,
 } from '../stores/RoomStore'
-import { pushNpcMessage } from '../stores/ChatStore'
+import { pushNpcMessage, setNpcChatMessages, NpcChatMessage } from '../stores/ChatStore'
 import { setWhiteboardUrls } from '../stores/WhiteboardStore'
 import { addPointNotification, setTotalPoints } from '../stores/PointStore'
 
@@ -261,21 +261,9 @@ export default class Network {
         })
       }
 
-      // track conversation changes for this NPC
-      npc.conversations.onAdd = (conversation, playerId) => {
-        // Only update if it's our conversation
-        if (playerId === this.room?.sessionId) {
-          conversation.messages.onAdd = (message, index) => {
-            const npcChatMessage = {
-              author: message.author,
-              createdAt: message.createdAt,
-              content: message.content,
-              isNpc: message.isNpc,
-            }
-            store.dispatch(pushNpcMessage(npcChatMessage))
-          }
-        }
-      }
+      // Note: NPC conversation messages are now handled via direct server messages
+      // (START_NPC_CONVERSATION and RECEIVE_NPC_MESSAGE) instead of Colyseus schema sync,
+      // because schema sync was unreliable for nested ArraySchema items.
     }
 
     // when the server sends room data
@@ -309,6 +297,27 @@ export default class Network {
       (data: { token: string; expiresAt: string; username: string }) => {
         console.log('[Network] Received session token from server')
         this.storeSessionToken(data.token, data.expiresAt, data.username)
+      }
+    )
+
+    // when server confirms NPC conversation started (with message history)
+    this.room.onMessage(
+      Message.START_NPC_CONVERSATION,
+      (data: { npcId: string; success: boolean; messages?: NpcChatMessage[] }) => {
+        console.log(`[Network] START_NPC_CONVERSATION response: npcId=${data.npcId}, messages=${data.messages?.length || 0}`)
+        if (data.success && data.messages && data.messages.length > 0) {
+          // Set initial messages from server response
+          store.dispatch(setNpcChatMessages(data.messages))
+        }
+      }
+    )
+
+    // when server sends a new NPC message (for real-time updates)
+    this.room.onMessage(
+      Message.RECEIVE_NPC_MESSAGE,
+      (data: NpcChatMessage) => {
+        console.log(`[Network] RECEIVE_NPC_MESSAGE: author=${data.author}`)
+        store.dispatch(pushNpcMessage(data))
       }
     )
 

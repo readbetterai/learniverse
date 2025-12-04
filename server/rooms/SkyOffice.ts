@@ -249,10 +249,18 @@ export class SkyOffice extends Room<OfficeState> {
       // Note: Points are now awarded for meaningful questions in SEND_NPC_MESSAGE handler
       // instead of for starting conversations
 
-      // Send conversation history to client
+      // Send conversation history to client (include messages for immediate display)
+      const messages = Array.from(conversation.messages).map((msg) => ({
+        author: msg.author,
+        createdAt: msg.createdAt,
+        content: msg.content,
+        isNpc: msg.isNpc,
+      }))
+
       client.send(Message.START_NPC_CONVERSATION, {
         npcId,
         success: true,
+        messages,
       })
     })
 
@@ -283,6 +291,14 @@ export class SkyOffice extends Room<OfficeState> {
 
       // Add to in-memory conversation
       conversation.messages.push(playerMessage)
+
+      // Send player message back to client immediately (don't rely on schema sync)
+      client.send(Message.RECEIVE_NPC_MESSAGE, {
+        author: playerMessage.author,
+        createdAt: playerMessage.createdAt,
+        content: playerMessage.content,
+        isNpc: playerMessage.isNpc,
+      })
 
       console.log(`Player ${player.playerName} sent message to NPC ${npc.name}: ${content}`)
 
@@ -354,6 +370,14 @@ export class SkyOffice extends Room<OfficeState> {
             npcResponseMessage.isNpc = true
             npcResponseMessage.createdAt = new Date().getTime()
             conversation.messages.push(npcResponseMessage)
+
+            // Send NPC response to client immediately (don't rely on schema sync)
+            client.send(Message.RECEIVE_NPC_MESSAGE, {
+              author: npcResponseMessage.author,
+              createdAt: npcResponseMessage.createdAt,
+              content: npcResponseMessage.content,
+              isNpc: npcResponseMessage.isNpc,
+            })
           }
 
           console.log(`Prof. Laura responded to ${player.playerName}: ${result.response}${shouldSkipNormalResponse ? ' (skipped - test trigger)' : ''}`)
@@ -379,6 +403,14 @@ export class SkyOffice extends Room<OfficeState> {
                 awardMessage.isNpc = true
                 awardMessage.createdAt = new Date().getTime()
                 conversation.messages.push(awardMessage)
+
+                // Send NPC award message to client immediately
+                client.send(Message.RECEIVE_NPC_MESSAGE, {
+                  author: awardMessage.author,
+                  createdAt: awardMessage.createdAt,
+                  content: awardMessage.content,
+                  isNpc: awardMessage.isNpc,
+                })
 
                 // Save NPC award message to database
                 if (this.dbService && dbConversationId) {
@@ -448,6 +480,14 @@ export class SkyOffice extends Room<OfficeState> {
           fallbackMessage.isNpc = true
           fallbackMessage.createdAt = new Date().getTime()
           conversation.messages.push(fallbackMessage)
+
+          // Send fallback message to client immediately
+          client.send(Message.RECEIVE_NPC_MESSAGE, {
+            author: fallbackMessage.author,
+            createdAt: fallbackMessage.createdAt,
+            content: fallbackMessage.content,
+            isNpc: fallbackMessage.isNpc,
+          })
 
           console.log(`Prof. Laura sent fallback message to ${player.playerName}`)
 
