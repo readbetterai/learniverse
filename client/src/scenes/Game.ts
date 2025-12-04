@@ -33,6 +33,7 @@ export default class Game extends Phaser.Scene {
   private otherPlayerMap = new Map<string, OtherPlayer>()
   private npcs!: Phaser.Physics.Arcade.StaticGroup
   private npcMap = new Map<string, { sprite: Npc; nameText: Phaser.GameObjects.Text }>()
+  private initialPositionSet = false
 
   constructor() {
     super('game')
@@ -217,9 +218,12 @@ export default class Game extends Phaser.Scene {
         this.myPlayer.setPlayerTexture(texture)
       }
     }
-    // Also update position if server has saved position
-    if (player.x && player.y) {
+    // Only update position on INITIAL load, not on subsequent state changes
+    // This prevents jitter caused by network latency when server position
+    // syncs back slower than local movement
+    if (!this.initialPositionSet && player.x && player.y) {
       this.myPlayer.setPosition(player.x, player.y)
+      this.initialPositionSet = true
     }
   }
 
