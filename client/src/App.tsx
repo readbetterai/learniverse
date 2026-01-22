@@ -18,6 +18,9 @@ import phaserGame from './PhaserGame'
 import Bootstrap from './scenes/Bootstrap'
 import Game from './scenes/Game'
 
+// Single-player mode flag - must match Network.ts
+const SINGLE_PLAYER_MODE = true
+
 const Backdrop = styled.div`
   position: absolute;
   height: 100%;
@@ -35,8 +38,14 @@ function App() {
   // Refs persist across StrictMode unmount/remount cycles
   const hasAttemptedReconnectRef = useRef(false)
 
-  // Check for stored token on mount and attempt reconnection
+  // Check for stored token on mount and attempt reconnection (multiplayer only)
   useEffect(() => {
+    // Skip reconnection logic in single-player mode
+    if (SINGLE_PLAYER_MODE) {
+      console.log('[App] Single-player mode: skipping reconnection logic')
+      return
+    }
+
     // Guard against double-mount in React StrictMode
     if (hasAttemptedReconnectRef.current) {
       console.log('[App] Reconnect already attempted, skipping (StrictMode double-mount)')

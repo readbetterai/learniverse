@@ -18,6 +18,9 @@ import { pushNpcMessage, setNpcChatMessages, NpcChatMessage } from '../stores/Ch
 import { setWhiteboardUrls } from '../stores/WhiteboardStore'
 import { addPointNotification, setTotalPoints } from '../stores/PointStore'
 
+// Single-player mode flag - set to true for Railway deployment without server
+const SINGLE_PLAYER_MODE = true
+
 // localStorage keys for session persistence
 const STORAGE_KEYS = {
   TOKEN: 'learniverse_token',
@@ -26,7 +29,7 @@ const STORAGE_KEYS = {
 }
 
 export default class Network {
-  private client: Client
+  private client!: Client
   private room?: Room<IOfficeState>
   private lobby!: Room
 
@@ -109,6 +112,17 @@ export default class Network {
   }
 
   constructor() {
+    if (SINGLE_PLAYER_MODE) {
+      // Single-player mode: skip server connection entirely
+      this.mySessionId = 'local-player-' + Math.random().toString(36).substring(7)
+      console.log('[Network] Running in single-player mode')
+      console.log('[Network] Session ID:', this.mySessionId)
+      store.dispatch(setLobbyJoined(true))
+      store.dispatch(setSessionId(this.mySessionId))
+      return
+    }
+
+    // Multiplayer mode: connect to Colyseus server
     const protocol = window.location.protocol.replace('http', 'ws')
     const endpoint =
       process.env.NODE_ENV === 'production'
@@ -140,6 +154,11 @@ export default class Network {
    * connected clients whenever rooms with "realtime listing" have updates
    */
   async joinLobbyRoom() {
+    if (SINGLE_PLAYER_MODE) {
+      console.log('[Network] Single-player mode: skipping lobby room')
+      return
+    }
+
     this.lobby = await this.client.joinOrCreate(RoomType.LOBBY)
 
     this.lobby.onMessage('rooms', (rooms) => {
@@ -157,18 +176,30 @@ export default class Network {
 
   // method to join the public lobby
   async joinOrCreatePublic(credentials?: { username: string; password: string }) {
+    if (SINGLE_PLAYER_MODE) {
+      console.log('[Network] Single-player mode: skipping public room join')
+      return
+    }
     this.room = await this.client.joinOrCreate(RoomType.PUBLIC, credentials || {})
     this.initialize()
   }
 
   // method to join a custom room
   async joinCustomById(roomId: string, password: string | null, credentials?: { username: string; password: string }) {
+    if (SINGLE_PLAYER_MODE) {
+      console.log('[Network] Single-player mode: skipping custom room join')
+      return
+    }
     this.room = await this.client.joinById(roomId, { password, ...credentials })
     this.initialize()
   }
 
   // method to create a custom room
   async createCustom(roomData: IRoomData, credentials?: { username: string; password: string }) {
+    if (SINGLE_PLAYER_MODE) {
+      console.log('[Network] Single-player mode: skipping custom room create')
+      return
+    }
     const { name, description, password, autoDispose } = roomData
     this.room = await this.client.create(RoomType.CUSTOM, {
       name,
@@ -371,44 +402,78 @@ export default class Network {
 
   // method to send player updates to Colyseus server
   updatePlayer(currentX: number, currentY: number, currentAnim: string) {
+    if (SINGLE_PLAYER_MODE) return // No-op in single-player mode
     this.room?.send(Message.UPDATE_PLAYER, { x: currentX, y: currentY, anim: currentAnim })
   }
 
   // method to send player name to Colyseus server
   updatePlayerName(currentName: string) {
+    if (SINGLE_PLAYER_MODE) return // No-op in single-player mode
     this.room?.send(Message.UPDATE_PLAYER_NAME, { name: currentName })
   }
 
   connectToWhiteboard(id: string) {
+    if (SINGLE_PLAYER_MODE) return // No-op in single-player mode
     this.room?.send(Message.CONNECT_TO_WHITEBOARD, { whiteboardId: id })
   }
 
   disconnectFromWhiteboard(id: string) {
+    if (SINGLE_PLAYER_MODE) return // No-op in single-player mode
     this.room?.send(Message.DISCONNECT_FROM_WHITEBOARD, { whiteboardId: id })
   }
 
   // method to interact with NPC
   interactWithNPC(npcId: string) {
+    if (SINGLE_PLAYER_MODE) return // No-op in single-player mode
     this.room?.send(Message.INTERACT_WITH_NPC, { npcId })
   }
 
   // method to start NPC conversation
   startNpcConversation(npcId: string) {
+    if (SINGLE_PLAYER_MODE) {
+      console.log('[Network] Single-player mode: starting mock NPC conversation')
+      return
+    }
     this.room?.send(Message.START_NPC_CONVERSATION, { npcId })
   }
 
   // method to end NPC conversation
   endNpcConversation(npcId: string) {
+    if (SINGLE_PLAYER_MODE) {
+      console.log('[Network] Single-player mode: ending mock NPC conversation')
+      return
+    }
     this.room?.send(Message.END_NPC_CONVERSATION, { npcId })
   }
 
   // method to send message to NPC
   sendNpcMessage(npcId: string, content: string) {
+    if (SINGLE_PLAYER_MODE) {
+      // Add player message to chat
+      store.dispatch(pushNpcMessage({
+        author: 'You',
+        content: content,
+        createdAt: Date.now(),
+        isNpc: false
+      }))
+
+      // Generate mock NPC response after brief delay
+      setTimeout(() => {
+        store.dispatch(pushNpcMessage({
+          author: 'Prof. Laura',
+          content: "Thanks for visiting! I'm currently offline in single-player mode, but feel free to explore the virtual office. In the full multiplayer version, I can help answer your questions!",
+          createdAt: Date.now(),
+          isNpc: true
+        }))
+      }, 500)
+      return
+    }
     this.room?.send(Message.SEND_NPC_MESSAGE, { npcId, content })
   }
 
   // method to get existing NPCs from room state
   getExistingNPCs() {
+    if (SINGLE_PLAYER_MODE) return [] // No NPCs from server in single-player mode
     const npcs: Array<{ npc: INPC; key: string }> = []
     this.room?.state.npcs.forEach((npc, key) => {
       npcs.push({ npc, key })
@@ -418,6 +483,7 @@ export default class Network {
 
   // method to get current player's state from room
   getMyPlayer(): IPlayer | null {
+    if (SINGLE_PLAYER_MODE) return null // No server player state in single-player mode
     return this.room?.state.players.get(this.mySessionId) ?? null
   }
 }

@@ -21,6 +21,9 @@ import store from '../stores'
 import { setFocused, setShowChat, endNpcChat } from '../stores/ChatStore'
 import { NavKeys, Keyboard } from '../../../types/KeyboardState'
 
+// Single-player mode flag - must match Network.ts
+const SINGLE_PLAYER_MODE = true
+
 export default class Game extends Phaser.Scene {
   network!: Network
   private cursors!: NavKeys
@@ -140,6 +143,29 @@ export default class Game extends Phaser.Scene {
     existingNPCs.forEach(({ npc, key }) => {
       this.handleNPCJoined(npc, key)
     })
+
+    // Single-player mode: auto-register keys and spawn local NPC
+    if (SINGLE_PLAYER_MODE) {
+      this.registerKeys()
+      this.spawnLocalNPCs()
+      this.myPlayer.setPlayerName('Explorer')
+    }
+  }
+
+  // Spawn local NPCs for single-player mode (since server won't spawn them)
+  private spawnLocalNPCs() {
+    console.log('[Game] Single-player mode: spawning local NPCs')
+
+    // Prof. Laura NPC - positioned near the center of the map
+    // Use partial INPC type since we don't have full Colyseus schema in single-player
+    const profLauraNpc = {
+      x: 500,
+      y: 350,
+      name: 'Prof. Laura',
+      texture: 'nancy',
+      anim: 'nancy_idle_down',
+    } as unknown as INPC
+    this.handleNPCJoined(profLauraNpc, 'guide')
   }
 
   private handleItemSelectorOverlap(playerSelector, selectionItem) {

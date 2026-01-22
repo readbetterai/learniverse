@@ -1,6 +1,9 @@
 import Phaser from 'phaser'
 import Network from '../services/Network'
 
+// Single-player mode flag - must match Network.ts
+const SINGLE_PLAYER_MODE = true
+
 export default class Bootstrap extends Phaser.Scene {
   private preloadComplete = false
   network!: Network
@@ -49,6 +52,12 @@ export default class Bootstrap extends Phaser.Scene {
     this.load.on('complete', () => {
       this.preloadComplete = true
       this.scene.launch('background')
+
+      // In single-player mode, auto-launch the game after preload
+      if (SINGLE_PLAYER_MODE) {
+        console.log('[Bootstrap] Single-player mode: auto-launching game')
+        this.launchGame()
+      }
     })
   }
 

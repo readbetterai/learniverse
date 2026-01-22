@@ -3,12 +3,15 @@ import { sanitizeId } from '../util'
 
 export type ConnectionState = 'disconnected' | 'reconnecting' | 'connected'
 
+// Single-player mode flag - must match Network.ts
+const SINGLE_PLAYER_MODE = true
+
 export const userSlice = createSlice({
   name: 'user',
   initialState: {
-    sessionId: '',
-    loggedIn: false,
-    connectionState: 'disconnected' as ConnectionState,
+    sessionId: SINGLE_PLAYER_MODE ? 'local-player' : '',
+    loggedIn: SINGLE_PLAYER_MODE ? true : false,
+    connectionState: (SINGLE_PLAYER_MODE ? 'connected' : 'disconnected') as ConnectionState,
     playerNameMap: new Map<string, string>(),
     showJoystick: window.innerWidth < 650,
   },
