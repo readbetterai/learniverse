@@ -89,9 +89,13 @@ export default class Game extends Phaser.Scene {
 
     this.otherPlayers = this.physics.add.group({ classType: OtherPlayer })
 
-    // Camera zoom 1.5 for better character visibility
+    // Camera setup - fixed position centered on room (no follow)
     this.cameras.main.zoom = 1.5
-    this.cameras.main.startFollow(this.myPlayer, true)
+    this.cameras.main.centerOn(0, 100)
+
+    // Set world bounds to contain player within the room area
+    this.physics.world.setBounds(-280, -30, 560, 300)
+    this.myPlayer.setCollideWorldBounds(true)
 
     this.physics.add.overlap(
       this.playerSelector,
@@ -155,6 +159,7 @@ export default class Game extends Phaser.Scene {
     coffeeTable.setScale(SCALE)
     coffeeTable.setDepth(115)
     coffeeTable.body.setSize(coffeeTable.width * SCALE, coffeeTable.height * SCALE)
+    coffeeTable.refreshBody()
     this.physics.add.collider(this.myPlayer, coffeeTable)
 
     // Couch - top center
@@ -162,6 +167,7 @@ export default class Game extends Phaser.Scene {
     couch.setScale(SCALE)
     couch.setDepth(20)
     couch.body.setSize(couch.width * SCALE, couch.height * SCALE)
+    couch.refreshBody()
     this.physics.add.collider(this.myPlayer, couch)
 
     // Left shelf - left wall of room
@@ -169,6 +175,7 @@ export default class Game extends Phaser.Scene {
     leftShelf.setScale(SCALE)
     leftShelf.setDepth(0)
     leftShelf.body.setSize(leftShelf.width * SCALE, leftShelf.height * SCALE)
+    leftShelf.refreshBody()
     this.physics.add.collider(this.myPlayer, leftShelf)
 
     // Right shelf - right wall of room
@@ -176,6 +183,7 @@ export default class Game extends Phaser.Scene {
     rightShelf.setScale(SCALE)
     rightShelf.setDepth(0)
     rightShelf.body.setSize(rightShelf.width * SCALE, rightShelf.height * SCALE)
+    rightShelf.refreshBody()
     this.physics.add.collider(this.myPlayer, rightShelf)
 
     // Plant - bottom left corner
@@ -183,6 +191,7 @@ export default class Game extends Phaser.Scene {
     plant.setScale(SCALE)
     plant.setDepth(200)
     plant.body.setSize(plant.width * SCALE, plant.height * SCALE)
+    plant.refreshBody()
     this.physics.add.collider(this.myPlayer, plant)
   }
 
