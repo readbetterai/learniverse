@@ -120,7 +120,7 @@ export default class MyPlayer extends Player {
           return
         }
 
-        const speed = 200
+        const speed = 150
         let vx = 0
         let vy = 0
 
