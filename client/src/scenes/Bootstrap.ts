@@ -31,6 +31,14 @@ export default class Bootstrap extends Phaser.Scene {
       frameHeight: 48,
     })
 
+    // Furniture items
+    this.load.image('coffee-table', 'assets/items/coffee-table.png')
+    this.load.image('couch', 'assets/items/couch.png')
+    this.load.image('left-shelf', 'assets/items/left-shelf.png')
+    this.load.image('right-shelf', 'assets/items/right-shelf.png')
+    this.load.image('plant', 'assets/items/plant.png')
+    this.load.image('rug', 'assets/items/rug.png')
+
     this.load.on('complete', () => {
       this.preloadComplete = true
 

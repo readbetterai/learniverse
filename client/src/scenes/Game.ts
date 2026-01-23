@@ -78,11 +78,14 @@ export default class Game extends Phaser.Scene {
     createCharacterAnims(this.anims)
 
     // Player spawns at center-bottom, below NPCs
-    this.myPlayer = this.add.myPlayer(0, 200, 'ash', this.network.mySessionId)
+    this.myPlayer = this.add.myPlayer(0, 210, 'ash', this.network.mySessionId)
     this.playerSelector = new PlayerSelector(this, 0, 0, 16, 16)
 
     // create NPC static group (NPCs will be spawned dynamically from server)
     this.npcs = this.physics.add.staticGroup({ classType: Npc })
+
+    // Create living room furniture cluster (left of player spawn)
+    this.createFurniture()
 
     this.otherPlayers = this.physics.add.group({ classType: OtherPlayer })
 
@@ -138,6 +141,51 @@ export default class Game extends Phaser.Scene {
     }
   }
 
+  // Create furniture items to form a room around the characters
+  private createFurniture() {
+    const SCALE = 0.1
+
+    // Rug - ground decoration at center, walkable (no collision)
+    const rug = this.add.image(0, 115, 'rug')
+    rug.setScale(SCALE)
+    rug.setDepth(-1) // Below everything
+
+    // Coffee table - center of room
+    const coffeeTable = this.physics.add.staticImage(0, 115, 'coffee-table')
+    coffeeTable.setScale(SCALE)
+    coffeeTable.setDepth(115)
+    coffeeTable.body.setSize(coffeeTable.width * SCALE, coffeeTable.height * SCALE)
+    this.physics.add.collider(this.myPlayer, coffeeTable)
+
+    // Couch - top center
+    const couch = this.physics.add.staticImage(0, 20, 'couch')
+    couch.setScale(SCALE)
+    couch.setDepth(20)
+    couch.body.setSize(couch.width * SCALE, couch.height * SCALE)
+    this.physics.add.collider(this.myPlayer, couch)
+
+    // Left shelf - left wall of room
+    const leftShelf = this.physics.add.staticImage(-250, 0, 'left-shelf')
+    leftShelf.setScale(SCALE)
+    leftShelf.setDepth(0)
+    leftShelf.body.setSize(leftShelf.width * SCALE, leftShelf.height * SCALE)
+    this.physics.add.collider(this.myPlayer, leftShelf)
+
+    // Right shelf - right wall of room
+    const rightShelf = this.physics.add.staticImage(250, 0, 'right-shelf')
+    rightShelf.setScale(SCALE)
+    rightShelf.setDepth(0)
+    rightShelf.body.setSize(rightShelf.width * SCALE, rightShelf.height * SCALE)
+    this.physics.add.collider(this.myPlayer, rightShelf)
+
+    // Plant - bottom left corner
+    const plant = this.physics.add.staticImage(-250, 200, 'plant')
+    plant.setScale(SCALE)
+    plant.setDepth(200)
+    plant.body.setSize(plant.width * SCALE, plant.height * SCALE)
+    this.physics.add.collider(this.myPlayer, plant)
+  }
+
   // Spawn local NPCs for single-player mode (since server won't spawn them)
   private spawnLocalNPCs() {
     console.log('[Game] Single-player mode: spawning local NPCs')
@@ -145,8 +193,8 @@ export default class Game extends Phaser.Scene {
     // Prof. Laura NPC - upper left, above player spawn
     // Use partial INPC type since we don't have full Colyseus schema in single-player
     const profLauraNpc = {
-      x: -200,
-      y: 0,
+      x: -150,
+      y: 30,
       name: 'Prof. Laura',
       texture: 'nancy',
       anim: 'nancy_idle_down',
@@ -155,8 +203,8 @@ export default class Game extends Phaser.Scene {
 
     // TA NPC - upper right, above player spawn
     const taNpc = {
-      x: 200,
-      y: 0,
+      x: 150,
+      y: 30,
       name: 'TA',
       texture: 'lucy',
       anim: 'lucy_idle_down',
