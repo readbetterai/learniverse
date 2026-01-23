@@ -86,8 +86,8 @@ export default class Game extends Phaser.Scene {
 
     this.otherPlayers = this.physics.add.group({ classType: OtherPlayer })
 
-    // Camera zoom 1.0 for wider view on infinite floor
-    this.cameras.main.zoom = 1.0
+    // Camera zoom 1.5 for better character visibility
+    this.cameras.main.zoom = 1.5
     this.cameras.main.startFollow(this.myPlayer, true)
 
     this.physics.add.overlap(

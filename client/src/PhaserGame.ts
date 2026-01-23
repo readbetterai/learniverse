@@ -5,7 +5,7 @@ import Bootstrap from './scenes/Bootstrap'
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   parent: 'phaser-container',
-  backgroundColor: '#5a5a5a', // Solid floor color (infinite floor effect)
+  backgroundColor: '#E3DAC3', // Solid floor color - lch(88 12.63 93.78)
   pixelArt: true, // Prevent pixel art from becoming blurred when scaled.
   scale: {
     mode: Phaser.Scale.ScaleModes.RESIZE,
