@@ -193,11 +193,13 @@ export class SkyOffice extends Room<OfficeState> {
             ;(conversation as any).dbConversationId = newDbConversation.id
             console.log(`✅ Created new conversation in database: ${newDbConversation.id}`)
 
-            // Add static greeting for Prof. Laura when conversation is first started
-            if (npcId === 'guide') {
+            // Add static greeting when conversation is first started
+            if (npcId === 'guide' || npcId === 'ta') {
               const greetingMessage = new NpcMessage()
               greetingMessage.author = npc.name
-              greetingMessage.content = "Hello! I'm Prof. Laura. How can I help you with your studies today?"
+              greetingMessage.content = npcId === 'guide'
+                ? "Hello! I'm Prof. Laura. How can I help you with your studies today?"
+                : "Hi there! I'm the TA. Feel free to ask me questions about the course!"
               greetingMessage.isNpc = true
               greetingMessage.createdAt = new Date().getTime()
               conversation.messages.push(greetingMessage)
@@ -214,10 +216,12 @@ export class SkyOffice extends Room<OfficeState> {
         } catch (error) {
           console.error('Failed to load/create conversation from database:', error)
           // Fall back to in-memory only
-          if (conversation.messages.length === 0 && npcId === 'guide') {
+          if (conversation.messages.length === 0 && (npcId === 'guide' || npcId === 'ta')) {
             const greetingMessage = new NpcMessage()
             greetingMessage.author = npc.name
-            greetingMessage.content = "Hello! I'm Prof. Laura. How can I help you with your studies today?"
+            greetingMessage.content = npcId === 'guide'
+              ? "Hello! I'm Prof. Laura. How can I help you with your studies today?"
+              : "Hi there! I'm the TA. Feel free to ask me questions about the course!"
             greetingMessage.isNpc = true
             greetingMessage.createdAt = new Date().getTime()
             conversation.messages.push(greetingMessage)
@@ -225,10 +229,12 @@ export class SkyOffice extends Room<OfficeState> {
         }
       } else {
         // No database - add greeting in memory only
-        if (conversation.messages.length === 0 && npcId === 'guide') {
+        if (conversation.messages.length === 0 && (npcId === 'guide' || npcId === 'ta')) {
           const greetingMessage = new NpcMessage()
           greetingMessage.author = npc.name
-          greetingMessage.content = "Hello! I'm Prof. Laura. How can I help you with your studies today?"
+          greetingMessage.content = npcId === 'guide'
+            ? "Hello! I'm Prof. Laura. How can I help you with your studies today?"
+            : "Hi there! I'm the TA. Feel free to ask me questions about the course!"
           greetingMessage.isNpc = true
           greetingMessage.createdAt = new Date().getTime()
           conversation.messages.push(greetingMessage)
@@ -506,6 +512,67 @@ export class SkyOffice extends Room<OfficeState> {
           }
         }
       }
+      // Simple scripted responses for TA Alex (not AI-powered)
+      else if (npcId === 'ta') {
+        // Select a random response from TA Alex's script
+        const taResponses = [
+          "That's a great question! You might want to discuss that with Prof. Laura for a more detailed answer.",
+          "I'm here to help! Let me know if you need anything else.",
+          "Good thinking! Keep exploring and don't hesitate to ask more questions.",
+          "I appreciate your curiosity! Feel free to chat with Prof. Laura for deeper discussions.",
+          "That's interesting! Have you tried exploring different approaches?",
+        ]
+
+        const randomIndex = Math.floor(Math.random() * taResponses.length)
+        const responseContent = taResponses[randomIndex]
+
+        const taResponseMessage = new NpcMessage()
+        taResponseMessage.author = npc.name
+        taResponseMessage.content = responseContent
+        taResponseMessage.isNpc = true
+        taResponseMessage.createdAt = new Date().getTime()
+        conversation.messages.push(taResponseMessage)
+
+        // Send TA response to client immediately
+        client.send(Message.RECEIVE_NPC_MESSAGE, {
+          author: taResponseMessage.author,
+          createdAt: taResponseMessage.createdAt,
+          content: taResponseMessage.content,
+          isNpc: taResponseMessage.isNpc,
+        })
+
+        console.log(`TA responded to ${player.playerName}: ${responseContent}`)
+
+        // Log NPC message received event
+        if (this.eventLogger && player.userId) {
+          await this.eventLogger.logEvent(
+            player.userId,
+            EventType.NPC_MESSAGE_RECEIVED,
+            {
+              npcId,
+              npcName: npc.name,
+              message: responseContent,
+              messageLength: responseContent.length,
+              timestamp: new Date()
+            },
+            client.sessionId
+          )
+        }
+
+        // Save TA response to database
+        if (this.dbService && dbConversationId) {
+          try {
+            await this.dbService.addConversationMessage({
+              conversationId: dbConversationId,
+              author: npc.name,
+              content: responseContent,
+              isNpc: true,
+            })
+          } catch (error) {
+            console.error('Failed to save TA response to database:', error)
+          }
+        }
+      }
     })
 
     // when a player ends a conversation with an NPC
@@ -541,17 +608,29 @@ export class SkyOffice extends Room<OfficeState> {
   }
 
   private spawnNPCs() {
-    // Spawn a guide NPC - positioned near player spawn (0, 0)
+    // Spawn Prof. Laura NPC - upper left, above player spawn
     const guide = new NPC()
     guide.id = 'guide'
     guide.name = 'Prof. Laura'
-    guide.x = 200
-    guide.y = 100
+    guide.x = -200
+    guide.y = 0
     guide.texture = 'nancy'
     guide.anim = 'nancy_idle_down'
 
     this.state.npcs.set('guide', guide)
-    console.log('✅ Spawned NPC: Guide at (200, 100)')
+    console.log('✅ Spawned NPC: Prof. Laura at (-200, 0)')
+
+    // Spawn TA NPC - upper right, above player spawn
+    const ta = new NPC()
+    ta.id = 'ta'
+    ta.name = 'TA'
+    ta.x = 200
+    ta.y = 0
+    ta.texture = 'lucy'
+    ta.anim = 'lucy_idle_down'
+
+    this.state.npcs.set('ta', ta)
+    console.log('✅ Spawned NPC: TA at (200, 0)')
   }
 
   async onAuth(client: Client, options: { password: string | null }) {

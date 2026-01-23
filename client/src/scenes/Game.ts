@@ -77,8 +77,8 @@ export default class Game extends Phaser.Scene {
 
     createCharacterAnims(this.anims)
 
-    // Player spawns at origin - infinite floor, no boundaries
-    this.myPlayer = this.add.myPlayer(0, 0, 'adam', this.network.mySessionId)
+    // Player spawns at center-bottom, below NPCs
+    this.myPlayer = this.add.myPlayer(0, 200, 'ash', this.network.mySessionId)
     this.playerSelector = new PlayerSelector(this, 0, 0, 16, 16)
 
     // create NPC static group (NPCs will be spawned dynamically from server)
@@ -134,7 +134,7 @@ export default class Game extends Phaser.Scene {
     if (SINGLE_PLAYER_MODE) {
       this.registerKeys()
       this.spawnLocalNPCs()
-      this.myPlayer.setPlayerName('Explorer')
+      this.myPlayer.setPlayerName('You')
     }
   }
 
@@ -142,16 +142,26 @@ export default class Game extends Phaser.Scene {
   private spawnLocalNPCs() {
     console.log('[Game] Single-player mode: spawning local NPCs')
 
-    // Prof. Laura NPC - positioned near player spawn (0, 0)
+    // Prof. Laura NPC - upper left, above player spawn
     // Use partial INPC type since we don't have full Colyseus schema in single-player
     const profLauraNpc = {
-      x: 200,
-      y: 100,
+      x: -200,
+      y: 0,
       name: 'Prof. Laura',
       texture: 'nancy',
       anim: 'nancy_idle_down',
     } as unknown as INPC
     this.handleNPCJoined(profLauraNpc, 'guide')
+
+    // TA NPC - upper right, above player spawn
+    const taNpc = {
+      x: 200,
+      y: 0,
+      name: 'TA',
+      texture: 'lucy',
+      anim: 'lucy_idle_down',
+    } as unknown as INPC
+    this.handleNPCJoined(taNpc, 'ta')
   }
 
   private handleItemSelectorOverlap(playerSelector, selectionItem) {
