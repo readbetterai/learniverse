@@ -10,8 +10,6 @@ import WhiteboardDialog from './components/WhiteboardDialog'
 import NpcChat from './components/NpcChat'
 import HelperButtonGroup from './components/HelperButtonGroup'
 import MobileVirtualJoystick from './components/MobileVirtualJoystick'
-import PointsDisplay from './components/PointsDisplay'
-import PointsNotification from './components/PointsNotification'
 import ReconnectingDialog from './components/ReconnectingDialog'
 
 import phaserGame from './PhaserGame'
@@ -155,9 +153,6 @@ function App() {
   return (
     <Backdrop>
       {ui}
-      {/* Points system UI - always rendered when logged in */}
-      <PointsDisplay />
-      <PointsNotification />
       {/* Render HelperButtonGroup if no dialogs are opened. */}
       {!whiteboardDialogOpen && <HelperButtonGroup />}
     </Backdrop>
