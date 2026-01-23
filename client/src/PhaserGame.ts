@@ -1,12 +1,11 @@
 import Phaser from 'phaser'
 import Game from './scenes/Game'
-import Background from './scenes/Background'
 import Bootstrap from './scenes/Bootstrap'
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   parent: 'phaser-container',
-  backgroundColor: '#93cbee',
+  backgroundColor: '#5a5a5a', // Solid floor color (infinite floor effect)
   pixelArt: true, // Prevent pixel art from becoming blurred when scaled.
   scale: {
     mode: Phaser.Scale.ScaleModes.RESIZE,
@@ -21,7 +20,7 @@ const config: Phaser.Types.Core.GameConfig = {
     },
   },
   autoFocus: true,
-  scene: [Bootstrap, Background, Game],
+  scene: [Bootstrap, Game],
 }
 
 const phaserGame = new Phaser.Game(config)

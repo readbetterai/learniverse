@@ -29,7 +29,6 @@ export default class Game extends Phaser.Scene {
   private cursors!: NavKeys
   private keyE!: Phaser.Input.Keyboard.Key
   private keyR!: Phaser.Input.Keyboard.Key
-  private map!: Phaser.Tilemaps.Tilemap
   myPlayer!: MyPlayer
   private playerSelector!: Phaser.GameObjects.Zone
   private otherPlayers!: Phaser.Physics.Arcade.Group
@@ -78,19 +77,8 @@ export default class Game extends Phaser.Scene {
 
     createCharacterAnims(this.anims)
 
-    this.map = this.make.tilemap({ key: 'tilemap' })
-    const FloorAndGround = this.map.addTilesetImage('FloorAndGround', 'tiles_wall')
-    const ClassroomAndLibrary = this.map.addTilesetImage('Classroom_and_library', 'tiles_classroom')
-
-    const groundLayer = this.map.createLayer('Floor', FloorAndGround)
-    const furnitureLayer = this.map.createLayer('Furniture', [FloorAndGround, ClassroomAndLibrary])
-    const chairsLayer = this.map.createLayer('Chairs', [FloorAndGround, ClassroomAndLibrary])
-    groundLayer.setCollisionByProperty({ collides: true })
-    furnitureLayer.setCollisionByProperty({ collides: true })
-
-    // debugDraw(groundLayer, this)
-
-    this.myPlayer = this.add.myPlayer(400, 400, 'adam', this.network.mySessionId)
+    // Player spawns at origin - infinite floor, no boundaries
+    this.myPlayer = this.add.myPlayer(0, 0, 'adam', this.network.mySessionId)
     this.playerSelector = new PlayerSelector(this, 0, 0, 16, 16)
 
     // create NPC static group (NPCs will be spawned dynamically from server)
@@ -98,11 +86,9 @@ export default class Game extends Phaser.Scene {
 
     this.otherPlayers = this.physics.add.group({ classType: OtherPlayer })
 
-    this.cameras.main.zoom = 1.5
+    // Camera zoom 1.0 for wider view on infinite floor
+    this.cameras.main.zoom = 1.0
     this.cameras.main.startFollow(this.myPlayer, true)
-
-    this.physics.add.collider([this.myPlayer, this.myPlayer.playerContainer], groundLayer)
-    this.physics.add.collider([this.myPlayer, this.myPlayer.playerContainer], furnitureLayer)
 
     this.physics.add.overlap(
       this.playerSelector,
@@ -156,11 +142,11 @@ export default class Game extends Phaser.Scene {
   private spawnLocalNPCs() {
     console.log('[Game] Single-player mode: spawning local NPCs')
 
-    // Prof. Laura NPC - positioned near the center of the map
+    // Prof. Laura NPC - positioned near player spawn (0, 0)
     // Use partial INPC type since we don't have full Colyseus schema in single-player
     const profLauraNpc = {
-      x: 500,
-      y: 350,
+      x: 200,
+      y: 100,
       name: 'Prof. Laura',
       texture: 'nancy',
       anim: 'nancy_idle_down',
@@ -183,39 +169,6 @@ export default class Game extends Phaser.Scene {
     // set selected item and set up new dialog
     playerSelector.selectedItem = selectionItem
     selectionItem.onOverlapDialog()
-  }
-
-  private addObjectFromTiled(
-    group: Phaser.Physics.Arcade.StaticGroup,
-    object: Phaser.Types.Tilemaps.TiledObject,
-    key: string,
-    tilesetName: string
-  ) {
-    const actualX = object.x! + object.width! * 0.5
-    const actualY = object.y! - object.height! * 0.5
-    const obj = group
-      .get(actualX, actualY, key, object.gid! - this.map.getTileset(tilesetName).firstgid)
-      .setDepth(actualY)
-    return obj
-  }
-
-  private addGroupFromTiled(
-    objectLayerName: string,
-    key: string,
-    tilesetName: string,
-    collidable: boolean
-  ) {
-    const group = this.physics.add.staticGroup()
-    const objectLayer = this.map.getObjectLayer(objectLayerName)
-    objectLayer.objects.forEach((object) => {
-      const actualX = object.x! + object.width! * 0.5
-      const actualY = object.y! - object.height! * 0.5
-      group
-        .get(actualX, actualY, key, object.gid! - this.map.getTileset(tilesetName).firstgid)
-        .setDepth(actualY)
-    })
-    if (this.myPlayer && collidable)
-      this.physics.add.collider([this.myPlayer, this.myPlayer.playerContainer], group)
   }
 
   // function to add new player to the otherPlayer group

@@ -13,24 +13,6 @@ export default class Bootstrap extends Phaser.Scene {
   }
 
   preload() {
-    this.load.atlas(
-      'cloud_day',
-      'assets/background/cloud_day.png',
-      'assets/background/cloud_day.json'
-    )
-    this.load.image('backdrop_day', 'assets/background/backdrop_day.png')
-    this.load.image('sun_moon', 'assets/background/sun_moon.png')
-
-    this.load.tilemapTiledJSON('tilemap', 'assets/map/map.json')
-    this.load.spritesheet('tiles_wall', 'assets/map/FloorAndGround.png', {
-      frameWidth: 32,
-      frameHeight: 32,
-    })
-    this.load.spritesheet('tiles_classroom', 'assets/tileset/Classroom_and_library.png', {
-      frameWidth: 32,
-      frameHeight: 32,
-    })
-
     // Character spritesheets
     this.load.spritesheet('adam', 'assets/character/adam.png', {
       frameWidth: 32,
@@ -51,7 +33,6 @@ export default class Bootstrap extends Phaser.Scene {
 
     this.load.on('complete', () => {
       this.preloadComplete = true
-      this.scene.launch('background')
 
       // In single-player mode, auto-launch the game after preload
       if (SINGLE_PLAYER_MODE) {

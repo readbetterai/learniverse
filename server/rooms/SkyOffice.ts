@@ -541,17 +541,17 @@ export class SkyOffice extends Room<OfficeState> {
   }
 
   private spawnNPCs() {
-    // Spawn a guide NPC
+    // Spawn a guide NPC - positioned near player spawn (0, 0)
     const guide = new NPC()
     guide.id = 'guide'
     guide.name = 'Prof. Laura'
-    guide.x = 250
-    guide.y = 200
+    guide.x = 200
+    guide.y = 100
     guide.texture = 'nancy'
     guide.anim = 'nancy_idle_down'
 
     this.state.npcs.set('guide', guide)
-    console.log('✅ Spawned NPC: Guide at (400, 350)')
+    console.log('✅ Spawned NPC: Guide at (200, 100)')
   }
 
   async onAuth(client: Client, options: { password: string | null }) {
